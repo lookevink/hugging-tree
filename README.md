@@ -106,9 +106,43 @@ This will scan the vanilla typescript project and sync it to the Neo4j database.
 You can explore the graph using the Neo4j Browser:
 
 1.  Open [http://localhost:7474](http://localhost:7474) in your browser.
-2.  Login with the credentials defined in your `.env` file (default: `neo4j` / `password`).
+2.  Login with the credentials defined in your `.env` file (default: `neo4j` / `password`). (bolt://0.0.0.0:7687)
 3.  Run the following Cypher query to see all files:
 
     ```cypher
     MATCH (n:File) RETURN n LIMIT 25
     ```
+
+4.  Run the following Cypher query to see all classes and functions:
+
+    ```cypher
+    MATCH (f:File)-[r:DEFINES]->(d) RETURN f, r, d LIMIT 50
+    ```
+    
+5.  Run the following Cypher query to see specific file:
+
+    ```cypher
+6.  **Unlock Graph Intelligence**:
+
+    To see the *visual graph*, you must return the nodes and relationships themselves, not just their properties.
+
+    **Dependency Graph (Who imports whom?)**:
+    ```cypher
+    MATCH (source:File)-[r:IMPORTS]->(target:File)
+    RETURN source, r, target LIMIT 50
+    ```
+
+    **Impact Analysis (If I change `userService.ts`, what breaks?)**:
+    ```cypher
+    MATCH (source:File)-[:IMPORTS*1..5]->(target:File {path: 'src/services/userService.ts'})
+    RETURN source, target
+    ```
+    *(This finds all files that depend on `userService.ts` up to 5 hops away)*
+
+    **Code Structure (Show me all functions in `productService.ts`)**:
+    ```cypher
+    MATCH (f:File {path: 'src/services/productService.ts'})-[:DEFINES]->(func:Function)
+    RETURN f, func
+    ```  
+
+    

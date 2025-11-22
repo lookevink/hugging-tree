@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from src.scanner import scan_repo
 from src.graph import GraphDB
 from src.parser import CodeParser
+from src.resolver import ImportResolver
 
 # Load environment variables
 load_dotenv()
@@ -25,12 +26,13 @@ def scan(path: str = typer.Option(..., help="Path to the repository to scan")):
         # 2. Sync to Neo4j
         graph = GraphDB()
         parser = CodeParser()
+        resolver = ImportResolver(project_root=path)
         
         try:
             print("Syncing files to Neo4j...")
             graph.sync_files(files, project_root=path)
             
-            print("Parsing and syncing definitions...")
+            print("Parsing and syncing definitions & dependencies...")
             for file_info in files:
                 # Read file content
                 # Note: In a real incremental scan, we'd only do this for changed files
@@ -39,10 +41,28 @@ def scan(path: str = typer.Option(..., help="Path to the repository to scan")):
                     with open(full_path, 'r', encoding='utf-8') as f:
                         source_code = f.read()
                     
-                    definitions = parser.parse_file(file_info.path, source_code)
+                    definitions, imports = parser.parse_file(file_info.path, source_code)
+                    
+                    # Sync Definitions
                     if definitions:
                         graph.sync_definitions(file_info.path, definitions)
-                        print(f"  Parsed {file_info.path}: {len(definitions)} definitions")
+                        
+                    # Sync Dependencies
+                    if imports:
+                        resolved_deps = []
+                        for imp in imports:
+                            target = resolver.resolve(file_info.path, imp.module)
+                            if target:
+                                resolved_deps.append({
+                                    'target_path': target,
+                                    'line': imp.start_line
+                                })
+                        
+                        if resolved_deps:
+                            graph.sync_dependencies(file_info.path, resolved_deps)
+                            
+                    print(f"  Parsed {file_info.path}: {len(definitions)} defs, {len(imports)} imports")
+                        
                 except Exception as e:
                     print(f"  Failed to parse {file_info.path}: {e}")
 

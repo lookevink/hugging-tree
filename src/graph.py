@@ -107,3 +107,31 @@ class GraphDB:
         
         tx.run(query_create_simple, file_path=file_path, definitions=def_data)
 
+    def sync_dependencies(self, file_path: str, dependencies: List[dict]):
+        """
+        Syncs dependencies (imports) to Neo4j.
+        dependencies is a list of dicts: {'target_path': str, 'line': int}
+        """
+        with self.driver.session() as session:
+            session.execute_write(self._create_dependencies_tx, file_path, dependencies)
+
+    @staticmethod
+    def _create_dependencies_tx(tx, file_path, dependencies):
+        # 1. Clear existing imports for this file
+        query_clear = """
+        MATCH (f:File {path: $file_path})-[r:IMPORTS]->()
+        DELETE r
+        """
+        tx.run(query_clear, file_path=file_path)
+
+        # 2. Create new imports
+        # We match the target file by path. If it doesn't exist (e.g. ignored file), we skip.
+        query_create = """
+        MATCH (source:File {path: $file_path})
+        UNWIND $deps AS dep
+        MATCH (target:File {path: dep.target_path})
+        MERGE (source)-[r:IMPORTS]->(target)
+        SET r.line = dep.line
+        """
+        tx.run(query_create, file_path=file_path, deps=dependencies)
+
