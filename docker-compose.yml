@@ -20,6 +20,7 @@ services:
     container_name: hugging-tree-app
     volumes:
       - .:/app
+      - ${PROJECTS_ROOT}:/projects
     environment:
       - NEO4J_URI=${NEO4J_URI}
       - NEO4J_USER=${NEO4J_USER}
