@@ -3,12 +3,12 @@
  */
 
 import { Request, Response } from "express";
-import { productService } from "../services/productService";
+import { productService } from "../../services/productService";
 import {
   CreateProductInput,
   UpdateProductInput,
   ProductCategory,
-} from "../types/product";
+} from "../../types/product";
 
 export class ProductHandlers {
   /**

@@ -3,8 +3,8 @@
  */
 
 import { Request, Response } from "express";
-import { userService } from "../services/userService";
-import { CreateUserInput, UpdateUserInput, UserQueryFilters } from "../types/user";
+import { userService } from "../../services/userService";
+import { CreateUserInput, UpdateUserInput, UserQueryFilters } from "../../types/user";
 
 export class UserHandlers {
   /**

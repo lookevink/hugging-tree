@@ -3,8 +3,8 @@
  */
 
 import { Request, Response } from "express";
-import { orderService } from "../services/orderService";
-import { CreateOrderInput, OrderStatus } from "../types/order";
+import { orderService } from "../../services/orderService";
+import { CreateOrderInput, OrderStatus } from "../../types/order";
 
 export class OrderHandlers {
   /**
@@ -27,7 +27,7 @@ export class OrderHandlers {
     try {
       const { id } = req.params;
       const includeDetails = req.query.details === "true";
-      
+
       if (includeDetails) {
         const order = await orderService.getOrderWithDetails(id);
         if (!order) {
