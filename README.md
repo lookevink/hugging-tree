@@ -96,7 +96,7 @@ The project root is mounted to `/app` inside the container.
 ## Testing on a sample typscript project:
 
 ```bash
-docker compose exec app python main.py scan --path /projects/hugging-tree/.example/vanilla
+docker compose exec app python main.py scan --path /projects/hugging-tree/.example/express
 ```
 
 This will scan the vanilla typescript project and sync it to the Neo4j database.
