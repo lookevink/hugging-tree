@@ -1,0 +1,7 @@
+neo4j
+chromadb
+tree-sitter
+tree-sitter-languages
+typer
+google-generativeai
+python-dotenv

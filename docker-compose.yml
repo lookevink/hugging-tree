@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  neo4j:
+    image: neo4j:5-community
+    container_name: hugging-tree-neo4j
+    ports:
+      - "7474:7474" # HTTP
+      - "7687:7687" # Bolt
+    environment:
+      - NEO4J_AUTH=${NEO4J_USER}/${NEO4J_PASSWORD}
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    networks:
+      - hugging-tree-net
+
+  app:
+    build: .
+    container_name: hugging-tree-app
+    volumes:
+      - .:/app
+    environment:
+      - NEO4J_URI=${NEO4J_URI}
+      - NEO4J_USER=${NEO4J_USER}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    depends_on:
+      - neo4j
+    networks:
+      - hugging-tree-net
+    command: tail -f /dev/null # Keep container running for development
+
+networks:
+  hugging-tree-net:
+    driver: bridge
+
+volumes:
+  neo4j_data:
+  neo4j_logs:
