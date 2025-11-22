@@ -41,18 +41,20 @@ def scan(path: str = typer.Option(..., help="Path to the repository to scan")):
                     with open(full_path, 'r', encoding='utf-8') as f:
                         source_code = f.read()
                     
-                    definitions, imports = parser.parse_file(file_info.path, source_code)
+                    definitions, imports, calls = parser.parse_file(file_info.path, source_code)
                     
                     # Sync Definitions
                     if definitions:
                         graph.sync_definitions(file_info.path, definitions)
                         
                     # Sync Dependencies
+                    resolved_imports = {} # Map module_name -> resolved_path
                     if imports:
                         resolved_deps = []
                         for imp in imports:
                             target = resolver.resolve(file_info.path, imp.module)
                             if target:
+                                resolved_imports[imp.module] = target
                                 resolved_deps.append({
                                     'target_path': target,
                                     'line': imp.start_line
@@ -60,8 +62,55 @@ def scan(path: str = typer.Option(..., help="Path to the repository to scan")):
                         
                         if resolved_deps:
                             graph.sync_dependencies(file_info.path, resolved_deps)
+
+                    # Sync Calls (Pass 3)
+                    if calls:
+                        resolved_calls = []
+                        for call in calls:
+                            if not call.context:
+                                continue # Skip top-level calls for now
+                                
+                            # Heuristic Resolution
+                            # 1. Check if it's a local function call (defined in same file)
+                            # 2. Check if it's an imported function call
                             
-                    print(f"  Parsed {file_info.path}: {len(definitions)} defs, {len(imports)} imports")
+                            target_file = file_info.path # Default to self
+                            callee_name = call.name
+                            
+                            # If call is like 'service.getUser()', we need to resolve 'service'
+                            if '.' in call.name:
+                                obj, method = call.name.split('.', 1)
+                                # Check if 'obj' is an import
+                                # This is tricky without full symbol table. 
+                                # Simplified: if we imported a module named 'obj', assume method is in that file.
+                                # But usually imports are 'import * as service from ...' or 'import { getUser } ...'
+                                
+                                # Let's try to find if 'obj' matches an imported module name
+                                # This is very rough.
+                                pass
+                            else:
+                                # Direct call 'getUser()'
+                                # Check if 'getUser' was imported? 
+                                # We didn't extract imported names yet in parser.py (TODO item)
+                                # So we can't distinguish local vs imported easily without that.
+                                pass
+                                
+                            # FOR NOW: Only link calls if we can guess the target.
+                            # Since we don't have imported names, we can't resolve 'getUser' to 'userService.ts' yet.
+                            # BUT, we can link local calls!
+                            
+                            # Let's just try to link local calls for demonstration
+                            resolved_calls.append({
+                                'caller_name': call.context,
+                                'callee_name': call.name,
+                                'target_file': file_info.path, # Self-call assumption for now
+                                'line': call.start_line
+                            })
+                            
+                        if resolved_calls:
+                            graph.sync_calls(file_info.path, resolved_calls)
+                            
+                    print(f"  Parsed {file_info.path}: {len(definitions)} defs, {len(imports)} imports, {len(calls)} calls")
                         
                 except Exception as e:
                     print(f"  Failed to parse {file_info.path}: {e}")

@@ -143,6 +143,24 @@ You can explore the graph using the Neo4j Browser:
     ```cypher
     MATCH (f:File {path: 'src/services/productService.ts'})-[:DEFINES]->(func:Function)
     RETURN f, func
-    ```  
+    ```
 
-    
+    **Function Usage (Who calls `createOrder`?)**:
+    ```cypher
+    MATCH (caller:Function)-[r:CALLS]->(callee:Function {name: 'createOrder'})
+    RETURN caller, r, callee
+    ```
+
+    **Call Graph (Visualize function interactions)**:
+    ```cypher
+    MATCH (f1:Function)-[r:CALLS]->(f2:Function)
+    RETURN f1, r, f2 LIMIT 50
+    ```
+
+## Managing db
+
+    **Drop the graph**:
+    Go to the Neo4j Browser and run:
+    ```cypher
+    MATCH (n) DETACH DELETE n;
+    ```

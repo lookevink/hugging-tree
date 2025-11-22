@@ -20,6 +20,13 @@ class Import:
     end_line: int
     code: str
 
+@dataclass
+class Call:
+    name: str
+    start_line: int
+    end_line: int
+    context: str # The function name where this call happens, if any
+
 class CodeParser:
     def __init__(self):
         self.parsers = {
@@ -50,6 +57,14 @@ class CodeParser:
                 (import_from_statement
                     module_name: (dotted_name) @module
                 ) @import_from
+                (call
+                    function: (identifier) @call_name
+                ) @call
+                (call
+                    function: (attribute
+                        attribute: (identifier) @call_name
+                    )
+                ) @call_method
             """,
             'typescript': """
                 (class_declaration
@@ -70,6 +85,14 @@ class CodeParser:
                 (import_statement
                     source: (string) @module
                 ) @import
+                (call_expression
+                    function: (identifier) @call_name
+                ) @call
+                (call_expression
+                    function: (member_expression
+                        property: (property_identifier) @call_name
+                    )
+                ) @call_method
             """,
              'javascript': """
                 (class_declaration
@@ -83,6 +106,14 @@ class CodeParser:
                 (import_statement
                     source: (string) @module
                 ) @import
+                (call_expression
+                    function: (identifier) @call_name
+                ) @call
+                (call_expression
+                    function: (member_expression
+                        property: (property_identifier) @call_name
+                    )
+                ) @call_method
             """
         }
 
@@ -96,14 +127,14 @@ class CodeParser:
             return 'javascript'
         return None
 
-    def parse_file(self, filename: str, source_code: str) -> Tuple[List[Definition], List[Import]]:
+    def parse_file(self, filename: str, source_code: str) -> Tuple[List[Definition], List[Import], List[Call]]:
         lang_name = self._get_language_for_file(filename)
         if not lang_name:
-            return [], []
+            return [], [], []
 
         parser = self.parsers.get(lang_name)
         if not parser:
-            return [], []
+            return [], [], []
 
         tree = parser.parse(bytes(source_code, "utf8"))
         language = self.languages.get(lang_name)
@@ -111,8 +142,22 @@ class CodeParser:
         
         definitions = []
         imports = []
+        calls = []
         captures = query.captures(tree.root_node)
         
+        # Helper to find parent function context
+        def get_context(node):
+            curr = node
+            while curr:
+                if curr.type in ['function_definition', 'function_declaration', 'method_definition', 'arrow_function']:
+                    # Try to find name
+                    name_node = curr.child_by_field_name('name')
+                    if name_node:
+                        return source_code[name_node.start_byte:name_node.end_byte]
+                    # If arrow function assigned to variable, could try to find variable name, but skipping for now
+                curr = curr.parent
+            return None
+
         for node, name in captures:
             if name in ['class', 'function']:
                 def_type = name
@@ -128,15 +173,10 @@ class CodeParser:
                     code=source_code[node.start_byte:node.end_byte]
                 ))
             elif name in ['import', 'import_from']:
-                # Basic import extraction
-                # For TS/JS: source is the string literal
-                # For Python: module_name is the dotted name
-                
                 module_name = ""
                 if lang_name in ['typescript', 'javascript']:
                     source_node = node.child_by_field_name('source')
                     if source_node:
-                        # Strip quotes
                         module_name = source_code[source_node.start_byte+1:source_node.end_byte-1]
                 elif lang_name == 'python':
                     if name == 'import_from':
@@ -144,18 +184,24 @@ class CodeParser:
                         if module_node:
                             module_name = source_code[module_node.start_byte:module_node.end_byte]
                     else:
-                        # import x.y
-                        # This is harder because it can be multiple names. 
-                        # Simplified: just grab the first one for now
                         pass
 
                 if module_name:
                     imports.append(Import(
                         module=module_name,
-                        names=[], # TODO: Extract imported names
+                        names=[], 
                         start_line=node.start_point[0] + 1,
                         end_line=node.end_point[0] + 1,
                         code=source_code[node.start_byte:node.end_byte]
                     ))
+            elif name == 'call_name':
+                call_name = source_code[node.start_byte:node.end_byte]
+                context = get_context(node)
+                calls.append(Call(
+                    name=call_name,
+                    start_line=node.start_point[0] + 1,
+                    end_line=node.end_point[0] + 1,
+                    context=context
+                ))
                 
-        return definitions, imports
+        return definitions, imports, calls

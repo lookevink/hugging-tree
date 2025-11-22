@@ -65,7 +65,7 @@ class GraphDB:
         # Note: This is a simple strategy. For incremental, we might want to be smarter.
         query_clear = """
         MATCH (f:File {path: $file_path})-[r:DEFINES]->(d)
-        DELETE r, d
+        DETACH DELETE d
         """
         tx.run(query_clear, file_path=file_path)
 
@@ -135,3 +135,44 @@ class GraphDB:
         """
         tx.run(query_create, file_path=file_path, deps=dependencies)
 
+    def sync_calls(self, file_path: str, calls: List[dict]):
+        """
+        Syncs function calls to Neo4j.
+        calls is a list of dicts: {'caller_name': str, 'callee_name': str, 'target_file': str, 'line': int}
+        """
+        with self.driver.session() as session:
+            session.execute_write(self._create_calls_tx, file_path, calls)
+
+    @staticmethod
+    def _create_calls_tx(tx, file_path, calls):
+        # 1. Clear existing calls for this file
+        # Note: This clears all calls originating from functions in this file
+        query_clear = """
+        MATCH (f:File {path: $file_path})-[:DEFINES]->(caller:Function)-[r:CALLS]->()
+        DELETE r
+        """
+        tx.run(query_clear, file_path=file_path)
+
+        # 2. Create new calls
+        # We need to match:
+        # - The caller function (defined in current file)
+        # - The callee function (defined in target file, or current file if target_file is None)
+        query_create = """
+        MATCH (f:File {path: $file_path})-[:DEFINES]->(caller:Function {name: $caller_name})
+        MATCH (target_file:File {path: $target_file})-[:DEFINES]->(callee:Function {name: $callee_name})
+        MERGE (caller)-[r:CALLS]->(callee)
+        SET r.line = $line
+        """
+        
+        # Batch processing manually since the query depends on row values for matching logic
+        # Actually, we can use UNWIND if we handle the target_file logic carefully
+        
+        query_create_batch = """
+        UNWIND $calls AS call
+        MATCH (f:File {path: $file_path})-[:DEFINES]->(caller:Function {name: call.caller_name})
+        MATCH (target_file:File {path: call.target_file})-[:DEFINES]->(callee:Function {name: call.callee_name})
+        MERGE (caller)-[r:CALLS]->(callee)
+        SET r.line = call.line
+        """
+        
+        tx.run(query_create_batch, file_path=file_path, calls=calls)
