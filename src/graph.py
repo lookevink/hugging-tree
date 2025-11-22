@@ -1,6 +1,6 @@
 import os
 from neo4j import GraphDatabase
-from typing import List
+from typing import List, Dict, Any, Optional
 from .scanner import FileInfo
 from .parser import Definition
 
@@ -176,3 +176,175 @@ class GraphDB:
         """
         
         tx.run(query_create_batch, file_path=file_path, calls=calls)
+
+    def get_definition_context(self, file_path: str, definition_name: str, max_hops: int = 2) -> Dict[str, Any]:
+        """
+        Gets graph context for a definition (function/class).
+        Returns related code through graph traversal:
+        - Files that import this definition's file
+        - Functions that call this function
+        - Functions called by this function
+        - Related definitions in the same file
+        """
+        def_id = f"{file_path}::{definition_name}"
+        
+        with self.driver.session() as session:
+            # First, get the definition and its file
+            def_result = session.run("""
+                MATCH (file:File)-[:DEFINES]->(def:Definition {id: $def_id})
+                RETURN def, file.path as file_path
+            """, def_id=def_id)
+            
+            def_record = def_result.single()
+            if not def_record or not def_record['def']:
+                return {}
+            
+            file_path = def_record['file_path']
+            
+            # Get dependents (files that import this file)
+            dependents_result = session.run("""
+                MATCH (dependent:File)-[:IMPORTS]->(file:File {path: $file_path})
+                RETURN collect(DISTINCT dependent.path) as dependents
+            """, file_path=file_path)
+            dependents = dependents_result.single()['dependents'] or []
+            
+            # Get dependencies (files this file imports)
+            deps_result = session.run("""
+                MATCH (file:File {path: $file_path})-[:IMPORTS]->(dependency:File)
+                RETURN collect(DISTINCT dependency.path) as dependencies
+            """, file_path=file_path)
+            dependencies = deps_result.single()['dependencies'] or []
+            
+            # Get callers (functions that call this function) - only if def is a Function
+            callers_result = session.run("""
+                MATCH (caller:Function)-[:CALLS]->(def:Function {id: $def_id})
+                MATCH (caller_file:File)-[:DEFINES]->(caller)
+                RETURN collect(DISTINCT {name: caller.name, file: caller_file.path}) as callers
+            """, def_id=def_id)
+            callers = callers_result.single()['callers'] or []
+            
+            # Get callees (functions called by this function) - only if def is a Function
+            callees_result = session.run("""
+                MATCH (def:Function {id: $def_id})-[:CALLS]->(callee:Function)
+                MATCH (callee_file:File)-[:DEFINES]->(callee)
+                RETURN collect(DISTINCT {name: callee.name, file: callee_file.path}) as callees
+            """, def_id=def_id)
+            callees = callees_result.single()['callees'] or []
+            
+            # Get siblings (other definitions in the same file)
+            siblings_result = session.run("""
+                MATCH (file:File {path: $file_path})-[:DEFINES]->(sibling:Definition)
+                WHERE sibling.id <> $def_id
+                RETURN collect(DISTINCT {id: sibling.id, name: sibling.name, type: sibling.type}) as siblings
+            """, file_path=file_path, def_id=def_id)
+            siblings = siblings_result.single()['siblings'] or []
+            
+            return {
+                'definition': {
+                    'id': def_record['def']['id'],
+                    'name': def_record['def']['name'],
+                    'type': def_record['def']['type'],
+                    'file_path': file_path,
+                    'start_line': def_record['def']['start_line'],
+                    'end_line': def_record['def']['end_line']
+                },
+                'dependents': dependents,
+                'callers': callers,
+                'callees': callees,
+                'siblings': siblings,
+                'dependencies': dependencies
+            }
+
+    def get_expanded_context(self, vector_results: List[Dict[str, Any]], max_hops: int = 2) -> Dict[str, Any]:
+        """
+        Takes vector search results and expands them with graph context.
+        Returns a combined "Perfect Context Packet" with semantic matches + graph relationships.
+        """
+        expanded_results = []
+        all_related_files = set()
+        
+        for result in vector_results:
+            meta = result['metadata']
+            file_path = meta['file_path']
+            name = meta['name']
+            
+            # Get graph context for this definition
+            context = self.get_definition_context(file_path, name, max_hops=max_hops)
+            
+            # Collect related files
+            all_related_files.add(file_path)
+            all_related_files.update(context.get('dependents', []))
+            all_related_files.update(context.get('dependencies', []))
+            for caller in context.get('callers', []):
+                if caller.get('file'):
+                    all_related_files.add(caller['file'])
+            for callee in context.get('callees', []):
+                if callee.get('file'):
+                    all_related_files.add(callee['file'])
+            
+            expanded_results.append({
+                'vector_result': result,
+                'graph_context': context
+            })
+        
+        return {
+            'semantic_matches': expanded_results,
+            'related_files': list(all_related_files),
+            'total_files': len(all_related_files)
+        }
+
+    def generate_context_packet(self, vector_results: List[Dict[str, Any]], max_hops: int = 2) -> str:
+        """
+        Generates a "Perfect Context Packet" in XML format for LLMs.
+        Combines semantic search results with graph relationships.
+        """
+        expanded = self.get_expanded_context(vector_results, max_hops=max_hops)
+        
+        xml_parts = ['<codebase_context>']
+        xml_parts.append(f'  <query_results count="{len(expanded["semantic_matches"])}">')
+        
+        for item in expanded['semantic_matches']:
+            result = item['vector_result']
+            context = item['graph_context']
+            meta = result['metadata']
+            
+            xml_parts.append(f'    <match score="{result["score"]:.4f}">')
+            xml_parts.append(f'      <definition name="{meta["name"]}" type="{meta["type"]}"/>')
+            xml_parts.append(f'      <file path="{meta["file_path"]}" line="{meta["start_line"]}"/>')
+            xml_parts.append(f'      <code><![CDATA[{result["document"]}]]></code>')
+            
+            if context:
+                if context.get('callers'):
+                    xml_parts.append('      <called_by>')
+                    for caller in context['callers']:
+                        xml_parts.append(f'        <function name="{caller["name"]}" file="{caller["file"]}"/>')
+                    xml_parts.append('      </called_by>')
+                
+                if context.get('callees'):
+                    xml_parts.append('      <calls>')
+                    for callee in context['callees']:
+                        xml_parts.append(f'        <function name="{callee["name"]}" file="{callee["file"]}"/>')
+                    xml_parts.append('      </calls>')
+                
+                if context.get('dependents'):
+                    xml_parts.append('      <used_by>')
+                    for dep in context['dependents']:
+                        xml_parts.append(f'        <file path="{dep}"/>')
+                    xml_parts.append('      </used_by>')
+                
+                if context.get('dependencies'):
+                    xml_parts.append('      <depends_on>')
+                    for dep in context['dependencies']:
+                        xml_parts.append(f'        <file path="{dep}"/>')
+                    xml_parts.append('      </depends_on>')
+            
+            xml_parts.append('    </match>')
+        
+        xml_parts.append('  </query_results>')
+        xml_parts.append(f'  <related_files count="{expanded["total_files"]}">')
+        for file_path in sorted(expanded['related_files']):
+            xml_parts.append(f'    <file path="{file_path}"/>')
+        xml_parts.append('  </related_files>')
+        xml_parts.append('</codebase_context>')
+        
+        return '\n'.join(xml_parts)

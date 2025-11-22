@@ -11,13 +11,7 @@ A local CLI that builds a Semantic Knowledge Graph of your codebase. It combines
 
 1. **Environment Variables**
    
-   Copy `.env.example` to a `.env` file in the root directory with the following variables:
-   
-   ```bash
-   cp .env.example .env
-   ```
-   
-   Copy `.env.example` to a `.env` file in the root directory with the following variables:
+   Copy `.env.example` to a `.env` file in the root directory:
    
    ```bash
    cp .env.example .env
@@ -119,10 +113,7 @@ You can explore the graph using the Neo4j Browser:
     MATCH (f:File)-[r:DEFINES]->(d) RETURN f, r, d LIMIT 50
     ```
     
-5.  Run the following Cypher query to see specific file:
-
-    ```cypher
-6.  **Unlock Graph Intelligence**:
+5.  **Unlock Graph Intelligence**:
 
     To see the *visual graph*, you must return the nodes and relationships themselves, not just their properties.
 
@@ -192,14 +183,79 @@ Embeddings are **automatically generated** when you run the `scan` command. The 
 
 ### Querying embeddings
 
-Use the `query` command to search your codebase semantically:
+Use the `query` command to search your codebase semantically. The command combines **vector search** (semantic similarity) with **graph traversal** (structural relationships) to provide rich context.
+
+#### Basic semantic search
 
 ```bash
 docker compose exec app python main.py query --text "authentication middleware" --path /projects/hugging-tree/.example/express --n 5
 ```
 
-This will return the top 5 most semantically similar code definitions to your query.
+This returns the top 5 most semantically similar code definitions to your query, enhanced with graph context showing:
+- **Callers**: Functions that call this function
+- **Callees**: Functions called by this function  
+- **Dependents**: Files that import this definition's file
+- **Dependencies**: Files this file imports
+
+#### Output options
+
+**Human-readable format (default):**
+```bash
+docker compose exec app python main.py query --text "authentication middleware" --path /projects/hugging-tree/.example/express --n 5
+```
+
+**XML context packet (for LLMs):**
+```bash
+docker compose exec app python main.py query --text "authentication middleware" --path /projects/hugging-tree/.example/express --n 5 --xml
+```
+
+The XML output generates a "Perfect Context Packet" that you can paste directly into Gemini, Claude, or other LLMs for code understanding tasks.
+
+**Vector search only (no graph context):**
+```bash
+docker compose exec app python main.py query --text "authentication middleware" --path /projects/hugging-tree/.example/express --n 5 --no-with-graph
+```
+
+#### How it works
+
+1. **Semantic Search**: Uses ChromaDB to find code definitions semantically similar to your query
+2. **Graph Traversal**: For each match, queries Neo4j to find:
+   - Structural relationships (imports, function calls)
+   - Impact analysis (what breaks if this changes)
+   - Related code in the same file
+3. **Context Packet**: Combines both sources into a comprehensive context for understanding code relationships
 
 ### Storage location
 
 Embeddings are persisted in the `.tree_roots/` directory within your scanned project. This directory contains the ChromaDB database files.
+
+## Vector + Graph Integration
+
+Hugging Tree combines two powerful data structures to provide comprehensive code understanding:
+
+### Vector Database (ChromaDB)
+- **Purpose**: Semantic similarity search
+- **Stores**: Code embeddings (vector representations of functions, classes, methods)
+- **Use Case**: "Find code that does something similar to X"
+- **Location**: `.tree_roots/` directory in your project
+
+### Graph Database (Neo4j)
+- **Purpose**: Structural relationship traversal
+- **Stores**: Files, definitions, imports, function calls
+- **Use Case**: "What breaks if I change this file?" or "Who calls this function?"
+- **Location**: Neo4j database (accessible at http://localhost:7474)
+
+### The Perfect Context Packet
+
+When you run a query, the system:
+
+1. **Finds semantically similar code** using vector search (ChromaDB)
+2. **Traverses graph relationships** to find structural connections (Neo4j)
+3. **Combines both** into a comprehensive context packet that includes:
+   - The matching code (from vector search)
+   - What calls it (from graph)
+   - What it calls (from graph)
+   - What files depend on it (from graph)
+   - What files it depends on (from graph)
+
+This dual approach solves the "Blast Radius" problem: semantic search finds the starting point, graph traversal finds the hidden dependencies that don't share keywords.

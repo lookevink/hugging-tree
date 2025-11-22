@@ -130,24 +130,90 @@ def parse():
 def query(
     text: str = typer.Option(..., help="The natural language query"),
     path: str = typer.Option(..., help="Path to the repository (for loading embeddings)"),
-    n: int = typer.Option(5, help="Number of results to return")
+    n: int = typer.Option(5, help="Number of results to return"),
+    with_graph: bool = typer.Option(True, help="Include graph context (dependencies, callers, callees)"),
+    xml: bool = typer.Option(False, help="Output as XML context packet for LLMs")
 ):
     """
-    Search the codebase using semantic search.
+    Search the codebase using semantic search, optionally enhanced with graph traversal.
     """
     try:
         embeddings = EmbeddingService(persistence_path=os.path.join(path, ".tree_roots"))
-        results = embeddings.query(text, n_results=n)
+        vector_results = embeddings.query(text, n_results=n)
         
-        print(f"\nResults for: '{text}'\n")
-        for r in results:
-            meta = r['metadata']
-            print(f"--- {meta['name']} ({meta['type']}) ---")
-            print(f"File: {meta['file_path']}:{meta['start_line']}")
-            print(f"Score: {r['score']:.4f}")
-            print(f"Code snippet:\n{r['document'][:200]}...\n")
+        print(f"\n🔍 Semantic Search Results for: '{text}'\n")
+        print("=" * 80)
+        
+        if with_graph or xml:
+            # Connect to graph DB and get expanded context
+            graph = GraphDB()
+            try:
+                if xml:
+                    # Output XML context packet
+                    xml_packet = graph.generate_context_packet(vector_results)
+                    print(xml_packet)
+                else:
+                    expanded = graph.get_expanded_context(vector_results)
+                    
+                    for i, item in enumerate(expanded['semantic_matches'], 1):
+                        result = item['vector_result']
+                        context = item['graph_context']
+                        meta = result['metadata']
+                        
+                        print(f"\n[{i}] {meta['name']} ({meta['type']})")
+                        print(f"    📄 File: {meta['file_path']}:{meta['start_line']}")
+                        print(f"    🎯 Semantic Score: {result['score']:.4f}")
+                        print(f"    📝 Code snippet:\n{result['document'][:200]}...")
+                        
+                        # Show graph context
+                        if context:
+                            print(f"\n    🔗 Graph Context:")
+                            
+                            if context.get('callers'):
+                                print(f"       ⬇️  Called by: {', '.join([c['name'] for c in context['callers'][:5]])}")
+                                if len(context['callers']) > 5:
+                                    print(f"          ... and {len(context['callers']) - 5} more")
+                            
+                            if context.get('callees'):
+                                print(f"       ⬆️  Calls: {', '.join([c['name'] for c in context['callees'][:5]])}")
+                                if len(context['callees']) > 5:
+                                    print(f"          ... and {len(context['callees']) - 5} more")
+                            
+                            if context.get('dependents'):
+                                print(f"       📦 Used by files: {len(context['dependents'])} file(s)")
+                                for dep in context['dependents'][:3]:
+                                    print(f"          - {dep}")
+                                if len(context['dependents']) > 3:
+                                    print(f"          ... and {len(context['dependents']) - 3} more")
+                            
+                            if context.get('dependencies'):
+                                print(f"       📥 Depends on: {len(context['dependencies'])} file(s)")
+                                for dep in context['dependencies'][:3]:
+                                    print(f"          - {dep}")
+                                if len(context['dependencies']) > 3:
+                                    print(f"          ... and {len(context['dependencies']) - 3} more")
+                        
+                        print()
+                    
+                    print("=" * 80)
+                    print(f"\n📊 Summary:")
+                    print(f"   • Found {len(expanded['semantic_matches'])} semantic matches")
+                    print(f"   • Related files in graph: {expanded['total_files']}")
+                
+            finally:
+                graph.close()
+        else:
+            # Just show vector search results
+            for i, r in enumerate(vector_results, 1):
+                meta = r['metadata']
+                print(f"\n[{i}] {meta['name']} ({meta['type']})")
+                print(f"    📄 File: {meta['file_path']}:{meta['start_line']}")
+                print(f"    🎯 Score: {r['score']:.4f}")
+                print(f"    📝 Code snippet:\n{r['document'][:200]}...\n")
             
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Error: {e}")
         raise typer.Exit(code=1)
 
