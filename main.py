@@ -5,6 +5,7 @@ from src.scanner import scan_repo
 from src.graph import GraphDB
 from src.parser import CodeParser
 from src.resolver import ImportResolver
+from src.embeddings import EmbeddingService
 
 # Load environment variables
 load_dotenv()
@@ -27,9 +28,10 @@ def scan(path: str = typer.Option(..., help="Path to the repository to scan")):
         graph = GraphDB()
         parser = CodeParser()
         resolver = ImportResolver(project_root=path)
+        embeddings = EmbeddingService(persistence_path=os.path.join(path, ".tree_roots"))
         
         try:
-            print("Syncing files to Neo4j...")
+            print("Parsing, syncing graph, and generating embeddings...")
             graph.sync_files(files, project_root=path)
             
             print("Parsing and syncing definitions & dependencies...")
@@ -46,6 +48,9 @@ def scan(path: str = typer.Option(..., help="Path to the repository to scan")):
                     # Sync Definitions
                     if definitions:
                         graph.sync_definitions(file_info.path, definitions)
+                        # Store Embeddings
+                        # print(f"  [DEBUG] Generating embeddings for {len(definitions)} definitions in {file_info.path}")
+                        embeddings.store_definitions(file_info.path, definitions)
                         
                     # Sync Dependencies
                     resolved_imports = {} # Map module_name -> resolved_path
@@ -71,46 +76,33 @@ def scan(path: str = typer.Option(..., help="Path to the repository to scan")):
                                 continue # Skip top-level calls for now
                                 
                             # Heuristic Resolution
-                            # 1. Check if it's a local function call (defined in same file)
-                            # 2. Check if it's an imported function call
-                            
                             target_file = file_info.path # Default to self
                             callee_name = call.name
                             
-                            # If call is like 'service.getUser()', we need to resolve 'service'
+                            # Try to resolve using imports
                             if '.' in call.name:
                                 obj, method = call.name.split('.', 1)
-                                # Check if 'obj' is an import
-                                # This is tricky without full symbol table. 
-                                # Simplified: if we imported a module named 'obj', assume method is in that file.
-                                # But usually imports are 'import * as service from ...' or 'import { getUser } ...'
-                                
-                                # Let's try to find if 'obj' matches an imported module name
-                                # This is very rough.
-                                pass
-                            else:
-                                # Direct call 'getUser()'
-                                # Check if 'getUser' was imported? 
-                                # We didn't extract imported names yet in parser.py (TODO item)
-                                # So we can't distinguish local vs imported easily without that.
-                                pass
-                                
-                            # FOR NOW: Only link calls if we can guess the target.
-                            # Since we don't have imported names, we can't resolve 'getUser' to 'userService.ts' yet.
-                            # BUT, we can link local calls!
+                                if obj in resolved_imports:
+                                    target_file = resolved_imports[obj]
+                                    callee_name = method
                             
-                            # Let's just try to link local calls for demonstration
+                            # We can't easily distinguish local vs imported calls without more symbol info
+                            # But if we assume local unless imported...
+                            
                             resolved_calls.append({
                                 'caller_name': call.context,
-                                'callee_name': call.name,
-                                'target_file': file_info.path, # Self-call assumption for now
+                                'callee_name': callee_name,
+                                'target_file': target_file,
                                 'line': call.start_line
                             })
                             
                         if resolved_calls:
+                            if 'orderHandlers.ts' in file_info.path:
+                                # print(f"  [DEBUG] OrderHandlers calls: {resolved_calls[:5]}") # Print first 5
+                                pass
                             graph.sync_calls(file_info.path, resolved_calls)
                             
-                    print(f"  Parsed {file_info.path}: {len(definitions)} defs, {len(imports)} imports, {len(calls)} calls")
+                    print(f"  Processed {file_info.path}: {len(definitions)} defs, {len(imports)} imports, {len(calls)} calls")
                         
                 except Exception as e:
                     print(f"  Failed to parse {file_info.path}: {e}")
@@ -133,6 +125,32 @@ def parse():
     """
     print("Parsing files...")
     # TODO: Implement parse logic
+
+@app.command()
+def query(
+    text: str = typer.Argument(..., help="The natural language query"),
+    path: str = typer.Option(..., help="Path to the repository (for loading embeddings)"),
+    n: int = typer.Option(5, help="Number of results to return")
+):
+    """
+    Search the codebase using semantic search.
+    """
+    try:
+        embeddings = EmbeddingService(persistence_path=os.path.join(path, ".tree_roots"))
+        results = embeddings.query(text, n_results=n)
+        
+        print(f"\nResults for: '{text}'\n")
+        for r in results:
+            meta = r['metadata']
+            print(f"--- {meta['name']} ({meta['type']}) ---")
+            print(f"File: {meta['file_path']}:{meta['start_line']}")
+            print(f"Score: {r['score']:.4f}")
+            print(f"Code snippet:\n{r['document'][:200]}...\n")
+            
+    except Exception as e:
+        print(f"Error: {e}")
+        raise typer.Exit(code=1)
+
 
 if __name__ == "__main__":
     app()

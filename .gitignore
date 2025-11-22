@@ -1,2 +1,4 @@
 .env
 src/__pycache__/*
+
+.tree_roots/
