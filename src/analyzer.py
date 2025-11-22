@@ -11,15 +11,21 @@ class ContextAnalyzer:
     Combines semantic search, graph traversal, and LLM analysis.
     """
     
-    def __init__(self, persistence_path: str = "./.tree_roots"):
+    def __init__(self, persistence_path: str = "./.tree_roots", model_name: str = None):
         self.api_key = os.getenv("GOOGLE_API_KEY")
         if not self.api_key:
             raise ValueError("GOOGLE_API_KEY not set. Required for analysis.")
         genai.configure(api_key=self.api_key)
         
+        # Use provided model, or environment variable, or default
+        if model_name:
+            self.model_name = model_name
+        else:
+            self.model_name = os.getenv("GEMINI_MODEL", "gemini-3-pro-preview")
+        
         self.embeddings = EmbeddingService(persistence_path=persistence_path)
         self.graph = GraphDB()
-        self.model = genai.GenerativeModel('gemini-3-pro-preview')
+        self.model = genai.GenerativeModel(self.model_name)
     
     def analyze_task(self, task_description: str, n_results: int = 10) -> Dict[str, Any]:
         """

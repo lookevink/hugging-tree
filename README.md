@@ -321,6 +321,39 @@ The `analyze` command provides structured insights:
 - `--task`: (Required) Any query, task description, or question about the codebase
 - `--path`: (Required) Path to the repository
 - `--n`: (Optional, default: 10) Number of semantic matches to consider
+- `--model`: (Optional) Gemini model to use for analysis. Examples:
+  - `gemini-3-pro-preview` (default) - Most intelligent, best for complex analysis
+  - `gemini-2.5-pro` - State-of-the-art thinking model, great for reasoning
+  - `gemini-2.5-flash` - Best price-performance, fast and capable
+  - `gemini-2.5-flash-lite` - Fastest, most cost-efficient
+  
+  You can also set the `GEMINI_MODEL` environment variable as a default.
+  
+  **Note**: Gemini 1.5 models are deprecated. Use 2.5 or 3.0 models instead.
+
+### Model Configuration
+
+**Important**: The embedding model (`gemini-embedding-001`) is fixed and cannot be changed after scanning. This ensures consistency in your vector database.
+
+However, the **analysis model** (used for generating insights) is flexible and can be changed per command:
+
+```bash
+# Use default model (gemini-3-pro-preview)
+docker compose exec app python main.py analyze --task "add auth" --path /projects/my-app
+
+# Use a specific model
+docker compose exec app python main.py analyze --task "add auth" --path /projects/my-app --model gemini-2.5-flash
+
+# Set default via environment variable
+export GEMINI_MODEL=gemini-2.5-pro
+docker compose exec app python main.py analyze --task "add auth" --path /projects/my-app
+```
+
+Different models have different strengths:
+- **gemini-3-pro-preview**: Most intelligent, best for complex multimodal understanding (default)
+- **gemini-2.5-pro**: State-of-the-art thinking model, excellent for reasoning over complex problems
+- **gemini-2.5-flash**: Best price-performance, fast and capable, great for most tasks
+- **gemini-2.5-flash-lite**: Fastest and most cost-efficient, good for high-volume tasks
 
 ### Example Output
 

@@ -206,7 +206,7 @@ def query(
         else:
             # Just show vector search results
             for i, r in enumerate(vector_results, 1):
-                meta = r['metadata']
+            meta = r['metadata']
                 print(f"\n[{i}] {meta['name']} ({meta['type']})")
                 print(f"    📄 File: {meta['file_path']}:{meta['start_line']}")
                 print(f"    🎯 Score: {r['score']:.4f}")
@@ -222,18 +222,26 @@ def query(
 def analyze(
     task: str = typer.Option(..., help="Any query, task description, or question about the codebase"),
     path: str = typer.Option(..., help="Path to the repository"),
-    n: int = typer.Option(10, help="Number of semantic matches to consider")
+    n: int = typer.Option(10, help="Number of semantic matches to consider"),
+    model: str = typer.Option(None, help="Gemini model to use for analysis (e.g., 'gemini-3-pro-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'). Defaults to GEMINI_MODEL env var or 'gemini-3-pro-preview'")
 ):
     """
     Analyze a query/task and generate actionable context including files to modify, blast radius, and step-by-step actions.
     
     The task parameter can be any string - a question, task description, feature request, bug report, etc.
     The system will find relevant code, analyze dependencies, and provide actionable insights.
+    
+    Note: The embedding model (for semantic search) is fixed and cannot be changed after scanning.
+    Only the analysis model (for LLM generation) can be configured.
     """
     try:
-        analyzer = ContextAnalyzer(persistence_path=os.path.join(path, ".tree_roots"))
+        analyzer = ContextAnalyzer(
+            persistence_path=os.path.join(path, ".tree_roots"),
+            model_name=model
+        )
         
         print(f"\n🔍 Analyzing task: '{task}'\n")
+        print(f"🤖 Using model: {analyzer.model_name}\n")
         print("=" * 80)
         print("Gathering context from codebase...\n")
         
