@@ -92,3 +92,23 @@ The project root is mounted to `/app` inside the container.
 - **Always use relative paths** from the project root (e.g., `src/main.py` or `./src/main.py`).
 - **Do NOT use absolute paths** from your host machine (e.g., `/Users/kevinloo/...`), as the container cannot see them.
 
+
+## Testing on a sample typscript project:
+
+```bash
+docker compose exec app python main.py scan --path /projects/hugging-tree/.example/vanilla
+```
+
+This will scan the vanilla typescript project and sync it to the Neo4j database.
+
+## Visualizing the Graph
+
+You can explore the graph using the Neo4j Browser:
+
+1.  Open [http://localhost:7474](http://localhost:7474) in your browser.
+2.  Login with the credentials defined in your `.env` file (default: `neo4j` / `password`).
+3.  Run the following Cypher query to see all files:
+
+    ```cypher
+    MATCH (n:File) RETURN n LIMIT 25
+    ```
