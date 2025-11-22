@@ -1,1 +1,63 @@
+
 # hugging-tree
+
+### **The Problem**: 
+AI tools like Cursor and Claude use "Context Stuffing" (text similarity), which misses structural dependencies. They fail the "Blast Radius" test—changing a file here breaks a file 10 folders away that doesn't share keywords.
+
+### **The Solution**: 
+A local CLI that builds a Semantic Knowledge Graph. It combines Vector Search (to find the starting point) with Graph Traversal (to find the hidden dependencies).
+
+### **The Wedge**: 
+Not replacing the IDE; providing the "Perfect Context Packet" (XML) that developers paste into Gemini/Claude to make them smarter.
+
+### **Tech stack**:
+- Language: python (3.11+)
+- Orchestration: docker-compose (Neo4j + App Container)
+- Graph DB: neo4j (5.x Community)
+- Vector DB: chromadb (Embedded mode)
+- Parser: tree-sitter (w/ tree-sitter-languages wrapper)
+- Scanner: git (via subprocess `git ls-files`)
+- LLM: gemini-1.5-pro-latest (Best context caching performance)
+- Embedding: text-embedding-004 (Newest, outperforms 001)
+- CLI: Typer
+
+
+### **Features**:
+Ingestion:
+1. The Inventory Scan (Incremental Sync)
+    - Run `git ls-files --stage` to get a map of {filepath: git_hash}.
+    - Compare against Neo4j: `MATCH (f:File) RETURN f.path, f.hash`.
+    - Identify: New, Modified (Hash Mismatch), and Deleted files.
+    - Action: Only parse the diff. (O(1) performance for large repos).
+2. The Semantic Parse (Tree-sitter)
+    - For every changed file, extract three specific logic layers:
+        - Definitions: Classes (`class_definition`), Functions (`function_definition`).
+        - Signatures: Capture function arguments and return types (critical for context).
+        - Dependencies: Import statements (`import_from_statement`, `import_statement`).
+    - *Strategy:* Store the raw source code of functions in ChromaDB for retrieval.
+
+3. Graph Construction (Nodes)
+    - Create :File nodes with properties `{path, hash, project_id}`.
+    - Create :Function and :Class nodes linked to their file:
+        `(:File)-[:DEFINES]->(:Function)`
+    - *Key Decision:* Use `file_path` as the primary key for Files, and `file_path::function_name` as the ID for functions.
+
+4. The Wiring (Edge Resolution)
+    - The Hard Part: Converting string `import { foo } from './utils'` into a graph edge.
+    - Algorithm:
+        1. Parse import path (`./utils`).
+        2. Resolve to absolute path (e.g., `src/utils.ts` or `src/utils/index.ts`).
+        3. Cypher Query: `MATCH (a:File {path: 'src/main.ts'}), (b:File {path: 'src/utils.ts'}) MERGE (a)-[:IMPORTS]->(b)`.
+    - Result: A fully traversable dependency graph.
+
+### **Validation**:
+
+One codebase for demo:
+- "The Broken Monolith" (Create a fake repo with 5 levels of nesting where changing a Database Schema breaks a Frontend Component 5 hops away).
+
+One open source codebase for experimentation:
+- `requests` (Python)
+    - Why: It is the standard. It has a clean, deep import structure (`api.py` -> `sessions.py` -> `adapters.py` -> `urllib3`), making it perfect for testing if your graph can "walk" the dependency chain.
+
+### .agent dir
+Refer to the [Agent](/.agent/README.MDC) for more information. For AI Agent instructions used in this project
