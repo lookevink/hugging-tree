@@ -2,6 +2,7 @@ import os
 from neo4j import GraphDatabase
 from typing import List
 from .scanner import FileInfo
+from .parser import Definition
 
 class GraphDB:
     def __init__(self):
@@ -39,3 +40,70 @@ class GraphDB:
         with self.driver.session() as session:
             result = session.run("MATCH (n:File) RETURN count(n) as count")
             return result.single()["count"]
+
+    def sync_definitions(self, file_path: str, definitions: List[Definition]):
+        """
+        Syncs definitions (classes, functions) to Neo4j.
+        """
+        def_data = [
+            {
+                "name": d.name,
+                "type": d.type,
+                "start_line": d.start_line,
+                "end_line": d.end_line,
+                "id": f"{file_path}::{d.name}"
+            }
+            for d in definitions
+        ]
+
+        with self.driver.session() as session:
+            session.execute_write(self._create_definitions_tx, file_path, def_data)
+
+    @staticmethod
+    def _create_definitions_tx(tx, file_path, def_data):
+        # 1. Clear existing definitions for this file (to handle updates)
+        # Note: This is a simple strategy. For incremental, we might want to be smarter.
+        query_clear = """
+        MATCH (f:File {path: $file_path})-[r:DEFINES]->(d)
+        DELETE r, d
+        """
+        tx.run(query_clear, file_path=file_path)
+
+        # 2. Create new definitions
+        query_create = """
+        MATCH (f:File {path: $file_path})
+        UNWIND $definitions AS def
+        CALL {
+            WITH f, def
+            MERGE (d:Definition {id: def.id})
+            SET d.name = def.name,
+                d.type = def.type,
+                d.start_line = def.start_line,
+                d.end_line = def.end_line
+            MERGE (f)-[:DEFINES]->(d)
+            
+            // Add specific labels
+            FOREACH (_ IN CASE WHEN def.type = 'class' THEN [1] ELSE [] END | SET d:Class)
+            FOREACH (_ IN CASE WHEN def.type = 'function' THEN [1] ELSE [] END | SET d:Function)
+        } IN TRANSACTIONS OF 100 ROWS
+        """
+        # Note: IN TRANSACTIONS is good for large batches, but might be overkill here. 
+        # Removing it for simplicity and compatibility with older Neo4j versions if needed,
+        # but keeping UNWIND.
+        
+        query_create_simple = """
+        MATCH (f:File {path: $file_path})
+        UNWIND $definitions AS def
+        MERGE (d:Definition {id: def.id})
+        SET d.name = def.name,
+            d.type = def.type,
+            d.start_line = def.start_line,
+            d.end_line = def.end_line
+        MERGE (f)-[:DEFINES]->(d)
+        
+        FOREACH (_ IN CASE WHEN def.type = 'class' THEN [1] ELSE [] END | SET d:Class)
+        FOREACH (_ IN CASE WHEN def.type = 'function' THEN [1] ELSE [] END | SET d:Function)
+        """
+        
+        tx.run(query_create_simple, file_path=file_path, definitions=def_data)
+

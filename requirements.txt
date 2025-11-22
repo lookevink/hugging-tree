@@ -1,6 +1,6 @@
 neo4j
 chromadb
-tree-sitter
+tree-sitter==0.21.3
 tree-sitter-languages
 typer
 google-generativeai
