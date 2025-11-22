@@ -13,7 +13,17 @@ class EmbeddingService:
             genai.configure(api_key=self.api_key)
 
         self.client = chromadb.PersistentClient(path=persistence_path)
-        self.collection = self.client.get_or_create_collection(name="code_definitions")
+        self._ensure_collection()
+
+    def _ensure_collection(self):
+        """
+        Ensures the collection exists. Will be created on first use.
+        """
+        try:
+            self.collection = self.client.get_collection(name="code_definitions")
+        except Exception:
+            # Collection doesn't exist, will be created on first upsert
+            self.collection = None
 
     def generate_embedding(self, text: str) -> List[float]:
         """
@@ -22,9 +32,9 @@ class EmbeddingService:
         if not self.api_key:
             raise ValueError("GOOGLE_API_KEY not set")
             
-        # Model: models/text-embedding-004 is the latest stable text embedding model
+        # Model: gemini-embedding-001
         result = genai.embed_content(
-            model="models/text-embedding-004",
+            model="models/gemini-embedding-001",
             content=text,
             task_type="retrieval_document",
             title="Code Snippet"
@@ -79,12 +89,38 @@ class EmbeddingService:
                 print(f"Failed to generate embedding for {def_id}: {e}")
 
         if ids:
-            self.collection.upsert(
-                ids=ids,
-                embeddings=embeddings,
-                documents=documents,
-                metadatas=metadatas
-            )
+            # Ensure collection exists
+            if self.collection is None:
+                self.collection = self.client.get_or_create_collection(name="code_definitions")
+            
+            try:
+                self.collection.upsert(
+                    ids=ids,
+                    embeddings=embeddings,
+                    documents=documents,
+                    metadatas=metadatas
+                )
+            except Exception as e:
+                error_msg = str(e)
+                if "dimension" in error_msg.lower() or "expecting" in error_msg.lower():
+                    # Dimension mismatch - recreate collection and retry
+                    if embeddings:
+                        embedding_dimension = len(embeddings[0])
+                        print(f"Detected embedding dimension mismatch. Recreating collection (new dimension: {embedding_dimension})...")
+                        try:
+                            self.client.delete_collection(name="code_definitions")
+                        except Exception:
+                            pass
+                        self.collection = self.client.get_or_create_collection(name="code_definitions")
+                        # Retry upsert
+                        self.collection.upsert(
+                            ids=ids,
+                            embeddings=embeddings,
+                            documents=documents,
+                            metadatas=metadatas
+                        )
+                else:
+                    raise
 
     def query(self, query_text: str, n_results: int = 5) -> List[Dict[str, Any]]:
         """
@@ -95,15 +131,28 @@ class EmbeddingService:
 
         # Embed the query
         query_embedding = genai.embed_content(
-            model="models/text-embedding-004",
+            model="models/gemini-embedding-001",
             content=query_text,
             task_type="retrieval_query"
         )['embedding']
 
-        results = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=n_results
-        )
+        # Ensure collection exists
+        if self.collection is None:
+            self.collection = self.client.get_or_create_collection(name="code_definitions")
+
+        try:
+            results = self.collection.query(
+                query_embeddings=[query_embedding],
+                n_results=n_results
+            )
+        except Exception as e:
+            error_msg = str(e)
+            if "dimension" in error_msg.lower() or "expecting" in error_msg.lower():
+                # Dimension mismatch - collection needs to be recreated
+                embedding_dimension = len(query_embedding)
+                print(f"Detected embedding dimension mismatch. Collection needs to be recreated. Please run 'scan' command first to rebuild embeddings.")
+                raise ValueError(f"Embedding dimension mismatch. Collection expects different dimension than model produces ({embedding_dimension}). Please delete .tree_roots directory and re-scan.")
+            raise
         
         # Format results
         formatted_results = []

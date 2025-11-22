@@ -164,3 +164,42 @@ You can explore the graph using the Neo4j Browser:
     ```cypher
     MATCH (n) DETACH DELETE n;
     ```
+
+## Generating embeddings
+
+Embeddings are **automatically generated** when you run the `scan` command. The system extracts all code definitions (functions, classes, methods, etc.) and generates vector embeddings for semantic search.
+
+### Prerequisites
+
+1. **Set up Google API Key**: Add your Google API key to your `.env` file:
+   ```bash
+   GOOGLE_API_KEY=your_api_key_here
+   ```
+   
+   The embeddings use Google's Gemini `gemini-embedding-001` model.
+
+2. **Run the scan command**: Embeddings are generated automatically during scanning:
+   ```bash
+   docker compose exec app python main.py scan --path /projects/my-app
+   ```
+
+### How it works
+
+- During scanning, the system parses all code definitions from your repository
+- Each definition (function, class, method) is embedded using Google's Gemini API
+- Embeddings are stored in ChromaDB at `.tree_roots/` directory in your project root
+- The embeddings include the definition name, type, and code snippet for context
+
+### Querying embeddings
+
+Use the `query` command to search your codebase semantically:
+
+```bash
+docker compose exec app python main.py query --text "authentication middleware" --path /projects/hugging-tree/.example/express --n 5
+```
+
+This will return the top 5 most semantically similar code definitions to your query.
+
+### Storage location
+
+Embeddings are persisted in the `.tree_roots/` directory within your scanned project. This directory contains the ChromaDB database files.

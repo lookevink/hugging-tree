@@ -128,7 +128,7 @@ def parse():
 
 @app.command()
 def query(
-    text: str = typer.Argument(..., help="The natural language query"),
+    text: str = typer.Option(..., help="The natural language query"),
     path: str = typer.Option(..., help="Path to the repository (for loading embeddings)"),
     n: int = typer.Option(5, help="Number of results to return")
 ):
