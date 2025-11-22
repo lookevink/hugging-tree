@@ -6,6 +6,7 @@ from src.graph import GraphDB
 from src.parser import CodeParser
 from src.resolver import ImportResolver
 from src.embeddings import EmbeddingService
+from src.analyzer import ContextAnalyzer
 
 # Load environment variables
 load_dotenv()
@@ -211,6 +212,90 @@ def query(
                 print(f"    🎯 Score: {r['score']:.4f}")
                 print(f"    📝 Code snippet:\n{r['document'][:200]}...\n")
             
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"Error: {e}")
+        raise typer.Exit(code=1)
+
+@app.command()
+def analyze(
+    task: str = typer.Option(..., help="Any query, task description, or question about the codebase"),
+    path: str = typer.Option(..., help="Path to the repository"),
+    n: int = typer.Option(10, help="Number of semantic matches to consider")
+):
+    """
+    Analyze a query/task and generate actionable context including files to modify, blast radius, and step-by-step actions.
+    
+    The task parameter can be any string - a question, task description, feature request, bug report, etc.
+    The system will find relevant code, analyze dependencies, and provide actionable insights.
+    """
+    try:
+        analyzer = ContextAnalyzer(persistence_path=os.path.join(path, ".tree_roots"))
+        
+        print(f"\n🔍 Analyzing task: '{task}'\n")
+        print("=" * 80)
+        print("Gathering context from codebase...\n")
+        
+        result = analyzer.analyze_task(task, n_results=n)
+        
+        # Display structured analysis
+        structured = result['structured']
+        
+        print("=" * 80)
+        print("\n📋 ANALYSIS RESULTS\n")
+        print("=" * 80)
+        
+        # Files to Modify
+        if structured.get('files_to_modify'):
+            print("\n📝 FILES TO MODIFY:")
+            print("-" * 80)
+            for i, file in enumerate(structured['files_to_modify'], 1):
+                print(f"  {i}. {file}")
+        
+        # Blast Radius
+        if structured.get('blast_radius'):
+            print("\n💥 BLAST RADIUS (Affected Files):")
+            print("-" * 80)
+            for i, file in enumerate(structured['blast_radius'], 1):
+                print(f"  {i}. {file}")
+        
+        # Actions
+        if structured.get('actions'):
+            print("\n✅ STEP-BY-STEP ACTIONS:")
+            print("-" * 80)
+            for i, action in enumerate(structured['actions'], 1):
+                print(f"  {i}. {action}")
+        
+        # Dependencies
+        if structured.get('dependencies'):
+            print("\n🔗 DEPENDENCIES TO CONSIDER:")
+            print("-" * 80)
+            for i, dep in enumerate(structured['dependencies'], 1):
+                print(f"  {i}. {dep}")
+        
+        # Risks
+        if structured.get('risks'):
+            print("\n⚠️  RISKS & BREAKING CHANGES:")
+            print("-" * 80)
+            for i, risk in enumerate(structured['risks'], 1):
+                print(f"  {i}. {risk}")
+        
+        # Full analysis
+        print("\n" + "=" * 80)
+        print("\n📄 FULL ANALYSIS:")
+        print("=" * 80)
+        print(result['analysis'])
+        
+        print("\n" + "=" * 80)
+        print(f"\n📊 SUMMARY:")
+        print(f"   • Semantic matches found: {result['semantic_matches']}")
+        print(f"   • Related files in graph: {len(result['related_files'])}")
+        print(f"   • Files to modify: {len(structured.get('files_to_modify', []))}")
+        print(f"   • Blast radius files: {len(structured.get('blast_radius', []))}")
+        
+        analyzer.close()
+        
     except Exception as e:
         import traceback
         traceback.print_exc()

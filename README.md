@@ -61,7 +61,7 @@ The `app` service mounts your local directory to `/app` in the container. This m
     For example, if you mounted your `projects` folder, you can scan any repo inside it:
 
     ```bash
-    docker compose exec app python main.py scan --path /projects/my-app
+    docker compose exec app python main.py scan --path /projects/hugging-tree/.example/express
     ```
 
 3.  **Rebuild Dependencies**: If you add a new package to `requirements.txt`, you must rebuild the container:
@@ -171,7 +171,7 @@ Embeddings are **automatically generated** when you run the `scan` command. The 
 
 2. **Run the scan command**: Embeddings are generated automatically during scanning:
    ```bash
-   docker compose exec app python main.py scan --path /projects/my-app
+   docker compose exec app python main.py scan --path /projects/hugging-tree/.example/express
    ```
 
 ### How it works
@@ -259,3 +259,94 @@ When you run a query, the system:
    - What files it depends on (from graph)
 
 This dual approach solves the "Blast Radius" problem: semantic search finds the starting point, graph traversal finds the hidden dependencies that don't share keywords.
+
+## Task Analysis & Action Planning
+
+The `analyze` command combines semantic search, graph traversal, and LLM analysis to generate actionable insights for any task or question about your codebase.
+
+### Usage
+
+```bash
+docker compose exec app python main.py analyze --task "your task or question" --path /projects/hugging-tree/.example/express
+```
+
+The `--task` parameter accepts **any string** - a feature request, bug report, question, or task description. The system will:
+1. Find semantically relevant code
+2. Analyze graph relationships and dependencies
+3. Generate actionable insights using LLM analysis
+
+### Example Use Cases
+
+**Feature Request:**
+```bash
+docker compose exec app python main.py analyze --task "add user authentication with JWT tokens" --path /projects/hugging-tree/.example/express
+```
+
+**Bug Fix:**
+```bash
+docker compose exec app python main.py analyze --task "fix the order creation bug when inventory is zero" --path /projects/hugging-tree/.example/express
+```
+
+**Code Understanding:**
+```bash
+docker compose exec app python main.py analyze --task "how does the payment processing work?" --path /projects/hugging-tree/.example/express
+```
+
+**Refactoring:**
+```bash
+docker compose exec app python main.py analyze --task "refactor the user service to use dependency injection" --path /projects/hugging-tree/.example/express
+```
+
+### Output
+
+The `analyze` command provides structured insights:
+
+- **📝 Files to Modify**: Specific files that need changes, ordered by priority
+- **💥 Blast Radius**: All files that will be affected (direct and indirect dependencies)
+- **✅ Step-by-Step Actions**: Numbered list of specific actions needed
+- **🔗 Dependencies**: External dependencies, imports, or relationships to consider
+- **⚠️ Risks & Breaking Changes**: Potential breaking changes, test files that need updates, and areas of risk
+- **📄 Full Analysis**: Complete LLM-generated analysis with detailed context
+
+### How It Works
+
+1. **Semantic Search**: Finds code semantically similar to your task using vector embeddings
+2. **Graph Traversal**: Analyzes dependencies, callers, callees, and file relationships
+3. **Context Building**: Creates a comprehensive context packet with all relevant code and relationships
+4. **LLM Analysis**: Uses Gemini to analyze the context and generate actionable insights
+5. **Structured Extraction**: Parses the analysis into actionable sections
+
+### Options
+
+- `--task`: (Required) Any query, task description, or question about the codebase
+- `--path`: (Required) Path to the repository
+- `--n`: (Optional, default: 10) Number of semantic matches to consider
+
+### Example Output
+
+```
+📋 ANALYSIS RESULTS
+
+📝 FILES TO MODIFY:
+  1. src/middleware/auth.ts
+  2. src/api/routes.ts
+  3. src/services/userService.ts
+
+💥 BLAST RADIUS (Affected Files):
+  1. src/api/handlers/userHandlers.ts
+  2. src/api/handlers/orderHandlers.ts
+  3. src/utils/validation.ts
+
+✅ STEP-BY-STEP ACTIONS:
+  1. Create JWT token generation utility
+  2. Add authentication middleware
+  3. Update route handlers to use middleware
+  ...
+
+⚠️ RISKS & BREAKING CHANGES:
+  1. Existing sessions will be invalidated
+  2. API endpoints require authentication headers
+  ...
+```
+
+This command is perfect for understanding the impact of changes before you start coding, ensuring you don't miss hidden dependencies or breaking changes.
