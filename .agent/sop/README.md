@@ -116,6 +116,29 @@ docker compose exec app python main.py analyze --task "your task or question" --
 - `--path`: (Required) Path to the repository
 - `--n`: (Optional, default: 10) Number of semantic matches to consider
 - `--model`: (Optional) Gemini model to use for analysis
+- `--prompt-template`: (Optional) Path to a custom prompt template file. Can also be set via `ANALYZE_PROMPT_TEMPLATE` environment variable.
+
+**Custom Prompt Templates**:
+
+You can customize the LLM prompts used for analysis by providing a template file. Templates support Python-style string formatting with these variables:
+- `{task}`: The user's task description
+- `{xml_context}`: The XML context packet with code and relationships
+- `{expanded_context}`: The expanded context dictionary (JSON)
+- `{semantic_matches_count}`: Number of semantic matches found
+- `{related_files_count}`: Number of related files in graph
+
+Example:
+```bash
+# Using a custom prompt template
+docker compose exec app python main.py analyze \
+  --task "add authentication" \
+  --path /projects/my-app \
+  --prompt-template /app/.example-prompts/analyze-example.txt
+
+# Or via environment variable
+export ANALYZE_PROMPT_TEMPLATE=/app/.example-prompts/analyze-example.txt
+docker compose exec app python main.py analyze --task "..." --path ...
+```
 
 ## Development Workflow
 

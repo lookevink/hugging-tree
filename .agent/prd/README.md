@@ -11,6 +11,7 @@ Detailed feature documentation with progress tracking is available in the `featu
 - **[Scan Feature](features/scan.md)**: Build a semantic knowledge graph with incremental sync
 - **[Query Feature](features/query.md)**: Semantic search with graph-enhanced context
 - **[Analyze Feature](features/analyze.md)**: Generate actionable insights using LLM analysis
+- **[Plan Feature](features/plan.md)**: Generate executable, step-by-step plans in XML for AI coding tools
 - **[Vector + Graph Integration](features/vector-graph-integration.md)**: How the two data structures work together
 
 ### Quick Summary
@@ -18,6 +19,7 @@ Detailed feature documentation with progress tracking is available in the `featu
 1. **Codebase Scanning (`scan`)**: Builds a semantic knowledge graph with incremental sync capabilities
 2. **Semantic Query (`query`)**: Searches codebase semantically with graph-enhanced context
 3. **Task Analysis (`analyze`)**: Generates actionable insights for any task or question
+4. **Execution Planning (`plan`)**: Generates executable, step-by-step plans in XML format for AI coding tools
 
 ## Vector + Graph Integration
 

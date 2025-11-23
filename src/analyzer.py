@@ -1,8 +1,41 @@
 import os
+import json
 import google.generativeai as genai
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from .graph import GraphDB
 from .embeddings import EmbeddingService
+
+
+def load_prompt_template(template_path: Optional[str] = None, env_var: Optional[str] = None) -> Optional[str]:
+    """
+    Loads a prompt template from a file.
+    
+    Args:
+        template_path: Path to the template file (from CLI flag)
+        env_var: Environment variable name to check if template_path is None
+        
+    Returns:
+        Template string if found, None otherwise
+    """
+    # Check CLI-provided path first
+    if template_path and os.path.exists(template_path):
+        try:
+            with open(template_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except Exception as e:
+            raise ValueError(f"Failed to load prompt template from {template_path}: {e}")
+    
+    # Check environment variable
+    if env_var:
+        env_path = os.getenv(env_var)
+        if env_path and os.path.exists(env_path):
+            try:
+                with open(env_path, 'r', encoding='utf-8') as f:
+                    return f.read()
+            except Exception as e:
+                raise ValueError(f"Failed to load prompt template from {env_path} (set via {env_var}): {e}")
+    
+    return None
 
 
 class ContextAnalyzer:
@@ -11,7 +44,7 @@ class ContextAnalyzer:
     Combines semantic search, graph traversal, and LLM analysis.
     """
     
-    def __init__(self, persistence_path: str = "./.tree_roots", model_name: str = None):
+    def __init__(self, persistence_path: str = "./.tree_roots", model_name: str = None, prompt_template: Optional[str] = None):
         self.api_key = os.getenv("GOOGLE_API_KEY")
         if not self.api_key:
             raise ValueError("GOOGLE_API_KEY not set. Required for analysis.")
@@ -22,6 +55,15 @@ class ContextAnalyzer:
             self.model_name = model_name
         else:
             self.model_name = os.getenv("GEMINI_MODEL", "gemini-3-pro-preview")
+        
+        # Load prompt template (from parameter path, env var, or None for default)
+        # prompt_template can be a file path or None
+        if prompt_template:
+            # If a path is provided, load it
+            self.prompt_template = load_prompt_template(template_path=prompt_template)
+        else:
+            # Try environment variable
+            self.prompt_template = load_prompt_template(env_var="ANALYZE_PROMPT_TEMPLATE")
         
         self.embeddings = EmbeddingService(persistence_path=persistence_path)
         self.graph = GraphDB()
@@ -71,6 +113,24 @@ class ContextAnalyzer:
     
     def _build_analysis_prompt(self, task: str, expanded_context: Dict[str, Any], xml_context: str) -> str:
         """Builds a prompt for the LLM to analyze the task."""
+        # Use custom template if provided, otherwise use default
+        if self.prompt_template:
+            try:
+                # Template variables available for substitution
+                template_vars = {
+                    'task': task,
+                    'xml_context': xml_context,
+                    'expanded_context': json.dumps(expanded_context, indent=2),
+                    'semantic_matches_count': len(expanded_context.get('semantic_matches', [])),
+                    'related_files_count': len(expanded_context.get('related_files', [])),
+                }
+                return self.prompt_template.format(**template_vars)
+            except KeyError as e:
+                raise ValueError(f"Prompt template contains unknown variable: {e}. Available variables: {', '.join(template_vars.keys())}")
+            except Exception as e:
+                raise ValueError(f"Failed to format prompt template: {e}")
+        
+        # Default prompt template
         return f"""You are a senior software engineer analyzing a codebase. Based on the user's request below, provide actionable insights about what needs to be modified, the blast radius, and step-by-step actions.
 
 USER REQUEST:

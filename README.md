@@ -8,6 +8,33 @@ A local CLI that builds a Semantic Knowledge Graph of your codebase. It combines
 2. **Start**: Run `docker-compose up -d --build`
 3. **Scan**: `docker compose exec app python main.py scan --path /projects/your-repo`
 4. **Query**: `docker compose exec app python main.py query --text "your query" --path /projects/your-repo`
+5. **Analyze**: `docker compose exec app python main.py analyze --task "your task" --path /projects/your-repo`
+6. **Plan**: `docker compose exec app python main.py plan --task "your task" --path /projects/your-repo`
+
+### Custom Prompt Templates
+
+Customize LLM prompts for domain-specific analysis and planning:
+
+```bash
+# Analyze with custom prompt template
+docker compose exec app python main.py analyze \
+  --task "add authentication" \
+  --path /projects/my-app \
+  --prompt-template /app/.example-prompts/analyze-example.txt
+
+# Plan with custom prompt template
+docker compose exec app python main.py plan \
+  --task "add authentication" \
+  --path /projects/my-app \
+  --prompt-template /app/.example-prompts/plan-example.txt
+
+# Or via environment variables
+export ANALYZE_PROMPT_TEMPLATE=/app/.example-prompts/analyze-example.txt
+export PLAN_PROMPT_TEMPLATE=/app/.example-prompts/plan-example.txt
+docker compose exec app python main.py analyze --task "..." --path ...
+```
+
+See [Analyze Feature Documentation](.agent/prd/features/analyze.md#prompt-customization) and [Plan Feature Documentation](.agent/prd/features/plan.md#prompt-customization) for details.
 
 ## Documentation
 
@@ -23,6 +50,8 @@ This project uses a structured documentation system in the `.agent` directory:
 - **Semantic Search**: Vector embeddings for finding similar code
 - **Graph Traversal**: Structural relationships (imports, function calls, dependencies)
 - **Task Analysis**: LLM-powered insights for code changes and understanding
+- **Execution Planning**: Generate executable, step-by-step plans in XML for AI coding tools
+- **Customizable Prompts**: Customize LLM prompts via templates for domain-specific analysis and planning
 
 ## Prerequisites
 

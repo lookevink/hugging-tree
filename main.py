@@ -7,6 +7,7 @@ from src.parser import CodeParser
 from src.resolver import ImportResolver
 from src.embeddings import EmbeddingService
 from src.analyzer import ContextAnalyzer
+from src.planner import PlanGenerator
 
 # Load environment variables
 load_dotenv()
@@ -206,7 +207,7 @@ def query(
         else:
             # Just show vector search results
             for i, r in enumerate(vector_results, 1):
-            meta = r['metadata']
+                meta = r['metadata']
                 print(f"\n[{i}] {meta['name']} ({meta['type']})")
                 print(f"    📄 File: {meta['file_path']}:{meta['start_line']}")
                 print(f"    🎯 Score: {r['score']:.4f}")
@@ -223,7 +224,8 @@ def analyze(
     task: str = typer.Option(..., help="Any query, task description, or question about the codebase"),
     path: str = typer.Option(..., help="Path to the repository"),
     n: int = typer.Option(10, help="Number of semantic matches to consider"),
-    model: str = typer.Option(None, help="Gemini model to use for analysis (e.g., 'gemini-3-pro-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'). Defaults to GEMINI_MODEL env var or 'gemini-3-pro-preview'")
+    model: str = typer.Option(None, help="Gemini model to use for analysis (e.g., 'gemini-3-pro-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'). Defaults to GEMINI_MODEL env var or 'gemini-3-pro-preview'"),
+    prompt_template: str = typer.Option(None, help="Path to a custom prompt template file. Can also be set via ANALYZE_PROMPT_TEMPLATE environment variable.")
 ):
     """
     Analyze a query/task and generate actionable context including files to modify, blast radius, and step-by-step actions.
@@ -231,13 +233,24 @@ def analyze(
     The task parameter can be any string - a question, task description, feature request, bug report, etc.
     The system will find relevant code, analyze dependencies, and provide actionable insights.
     
+    Prompt templates support Python-style string formatting with variables:
+    - {task}: The user's task description
+    - {xml_context}: The XML context packet with code and relationships
+    - {expanded_context}: The expanded context dictionary (JSON)
+    - {semantic_matches_count}: Number of semantic matches found
+    - {related_files_count}: Number of related files in graph
+    
     Note: The embedding model (for semantic search) is fixed and cannot be changed after scanning.
     Only the analysis model (for LLM generation) can be configured.
     """
     try:
+        # Load prompt template if provided (CLI flag takes precedence over env var)
+        custom_template_path = prompt_template or os.getenv("ANALYZE_PROMPT_TEMPLATE")
+        
         analyzer = ContextAnalyzer(
             persistence_path=os.path.join(path, ".tree_roots"),
-            model_name=model
+            model_name=model,
+            prompt_template=custom_template_path  # Pass path, let ContextAnalyzer load it
         )
         
         print(f"\n🔍 Analyzing task: '{task}'\n")
@@ -303,6 +316,45 @@ def analyze(
         print(f"   • Blast radius files: {len(structured.get('blast_radius', []))}")
         
         analyzer.close()
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"Error: {e}")
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def plan(
+    task: str = typer.Option(..., help="The task description or feature request"),
+    path: str = typer.Option(..., help="Path to the repository"),
+    n: int = typer.Option(10, help="Number of semantic matches to consider"),
+    model: str = typer.Option(None, help="Gemini model to use for planning"),
+    prompt_template: str = typer.Option(None, help="Path to a custom prompt template file")
+):
+    """
+    Generate an executable, step-by-step plan in XML format for AI coding tools.
+    """
+    try:
+        # Load prompt template if provided (CLI flag takes precedence over env var)
+        custom_template_path = prompt_template or os.getenv("PLAN_PROMPT_TEMPLATE")
+        
+        planner = PlanGenerator(
+            persistence_path=os.path.join(path, ".tree_roots"),
+            model_name=model,
+            prompt_template=custom_template_path
+        )
+        
+        print(f"\n📋 Generating plan for: '{task}'\n")
+        print(f"🤖 Using model: {planner.model_name}\n")
+        print("=" * 80)
+        print("Gathering context and generating plan...\n")
+        
+        plan_xml = planner.generate_plan(task, n_results=n)
+        
+        print(plan_xml)
+        
+        planner.close()
         
     except Exception as e:
         import traceback
