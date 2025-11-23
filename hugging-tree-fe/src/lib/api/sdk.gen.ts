@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ApiAnalyzeAnalyzePostData, ApiAnalyzeAnalyzePostErrors, ApiAnalyzeAnalyzePostResponses, ApiListProjectsProjectsGetData, ApiListProjectsProjectsGetResponses, ApiPlanPlanPostData, ApiPlanPlanPostErrors, ApiPlanPlanPostResponses, ApiQueryQueryPostData, ApiQueryQueryPostErrors, ApiQueryQueryPostResponses, ApiScanScanPostData, ApiScanScanPostErrors, ApiScanScanPostResponses, DeepTraceAnalyzeDeepTraceAnalyzePostData, DeepTraceAnalyzeDeepTraceAnalyzePostErrors, DeepTraceAnalyzeDeepTraceAnalyzePostResponses, DeepTraceApplyDeepTraceApplyPostData, DeepTraceApplyDeepTraceApplyPostErrors, DeepTraceApplyDeepTraceApplyPostResponses, GetGraphGraphPostData, GetGraphGraphPostErrors, GetGraphGraphPostResponses, GetNodeDetailsNodeDetailsPostData, GetNodeDetailsNodeDetailsPostErrors, GetNodeDetailsNodeDetailsPostResponses } from './types.gen';
+import type { ApiAnalyzeAnalyzePostData, ApiAnalyzeAnalyzePostErrors, ApiAnalyzeAnalyzePostResponses, ApiListProjectsProjectsGetData, ApiListProjectsProjectsGetResponses, ApiPlanPlanPostData, ApiPlanPlanPostErrors, ApiPlanPlanPostResponses, ApiQueryQueryPostData, ApiQueryQueryPostErrors, ApiQueryQueryPostResponses, ApiScanScanPostData, ApiScanScanPostErrors, ApiScanScanPostResponses, DeepLinkCreateDeepLinkCreatePostData, DeepLinkCreateDeepLinkCreatePostErrors, DeepLinkCreateDeepLinkCreatePostResponses, DeepLinkDeleteDeepLinkDeletePostData, DeepLinkDeleteDeepLinkDeletePostErrors, DeepLinkDeleteDeepLinkDeletePostResponses, DeepLinkListDeepLinkListPostData, DeepLinkListDeepLinkListPostErrors, DeepLinkListDeepLinkListPostResponses, DeepLinkSearchDeepLinkSearchPostData, DeepLinkSearchDeepLinkSearchPostErrors, DeepLinkSearchDeepLinkSearchPostResponses, DeepTraceAnalyzeDeepTraceAnalyzePostData, DeepTraceAnalyzeDeepTraceAnalyzePostErrors, DeepTraceAnalyzeDeepTraceAnalyzePostResponses, DeepTraceApplyDeepTraceApplyPostData, DeepTraceApplyDeepTraceApplyPostErrors, DeepTraceApplyDeepTraceApplyPostResponses, GetGraphGraphPostData, GetGraphGraphPostErrors, GetGraphGraphPostResponses, GetNodeDetailsNodeDetailsPostData, GetNodeDetailsNodeDetailsPostErrors, GetNodeDetailsNodeDetailsPostResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -116,6 +116,63 @@ export const deepTraceApplyDeepTraceApplyPost = <ThrowOnError extends boolean = 
  */
 export const getNodeDetailsNodeDetailsPost = <ThrowOnError extends boolean = false>(options: Options<GetNodeDetailsNodeDetailsPostData, ThrowOnError>) => (options.client ?? client).post<GetNodeDetailsNodeDetailsPostResponses, GetNodeDetailsNodeDetailsPostErrors, ThrowOnError>({
     url: '/node/details',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Deep Link Search
+ *
+ * Searches for nodes (Files and Definitions) matching the query string.
+ * Used for finding nodes to link in the Deep Link feature.
+ */
+export const deepLinkSearchDeepLinkSearchPost = <ThrowOnError extends boolean = false>(options: Options<DeepLinkSearchDeepLinkSearchPostData, ThrowOnError>) => (options.client ?? client).post<DeepLinkSearchDeepLinkSearchPostResponses, DeepLinkSearchDeepLinkSearchPostErrors, ThrowOnError>({
+    url: '/deep-link/search',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Deep Link Create
+ *
+ * Creates a manual relationship (deep link) between two nodes.
+ */
+export const deepLinkCreateDeepLinkCreatePost = <ThrowOnError extends boolean = false>(options: Options<DeepLinkCreateDeepLinkCreatePostData, ThrowOnError>) => (options.client ?? client).post<DeepLinkCreateDeepLinkCreatePostResponses, DeepLinkCreateDeepLinkCreatePostErrors, ThrowOnError>({
+    url: '/deep-link/create',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Deep Link List
+ *
+ * Gets all deep link relationships for a given node.
+ */
+export const deepLinkListDeepLinkListPost = <ThrowOnError extends boolean = false>(options: Options<DeepLinkListDeepLinkListPostData, ThrowOnError>) => (options.client ?? client).post<DeepLinkListDeepLinkListPostResponses, DeepLinkListDeepLinkListPostErrors, ThrowOnError>({
+    url: '/deep-link/list',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Deep Link Delete
+ *
+ * Deletes a deep link relationship by its ID.
+ */
+export const deepLinkDeleteDeepLinkDeletePost = <ThrowOnError extends boolean = false>(options: Options<DeepLinkDeleteDeepLinkDeletePostData, ThrowOnError>) => (options.client ?? client).post<DeepLinkDeleteDeepLinkDeletePostResponses, DeepLinkDeleteDeepLinkDeletePostErrors, ThrowOnError>({
+    url: '/deep-link/delete',
     ...options,
     headers: {
         'Content-Type': 'application/json',

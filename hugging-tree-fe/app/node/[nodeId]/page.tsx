@@ -5,10 +5,21 @@ import { useParams, useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Loader2, ArrowLeft, Code, Network, FileText, Info } from 'lucide-react'
+import { Loader2, ArrowLeft, Code, Network, FileText, Info, Link2, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import '@/src/lib/api-client'
-import { getNodeDetailsNodeDetailsPost, deepTraceAnalyzeDeepTraceAnalyzePost, deepTraceApplyDeepTraceApplyPost } from '@/src/lib/api'
+import { 
+  getNodeDetailsNodeDetailsPost, 
+  deepTraceAnalyzeDeepTraceAnalyzePost, 
+  deepTraceApplyDeepTraceApplyPost,
+  deepLinkSearchDeepLinkSearchPost,
+  deepLinkCreateDeepLinkCreatePost,
+  deepLinkListDeepLinkListPost,
+  deepLinkDeleteDeepLinkDeletePost
+} from '@/src/lib/api'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import {
   CodeBlock,
   CodeBlockBody,
@@ -82,10 +93,20 @@ export default function NodeDetailsPage() {
   const [projectPath, setProjectPath] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [details, setDetails] = useState<NodeDetails | null>(null)
-  const [activeTab, setActiveTab] = useState<'code' | 'graph' | 'list'>('code')
+  const [activeTab, setActiveTab] = useState<'code' | 'graph' | 'list' | 'nurture'>('code')
   const [deepTraceLoading, setDeepTraceLoading] = useState(false)
   const [deepTraceResults, setDeepTraceResults] = useState<any[]>([])
   const [showDeepTraceResults, setShowDeepTraceResults] = useState(false)
+  
+  // Deep Link state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null)
+  const [relType, setRelType] = useState('RELATES_TO')
+  const [relNotes, setRelNotes] = useState('')
+  const [deepLinks, setDeepLinks] = useState<any[]>([])
+  const [deepLinksLoading, setDeepLinksLoading] = useState(false)
 
   const loadNodeDetails = useCallback(async (projectRoot: string) => {
     try {
@@ -121,6 +142,140 @@ export default function NodeDetailsPage() {
       router.push('/')
     }
   }, [nodeId, router, loadNodeDetails])
+
+  // Load deep links when nurture tab is active
+  useEffect(() => {
+    if (activeTab === 'nurture' && projectPath) {
+      loadDeepLinks()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, projectPath, nodeId])
+
+  // Debounce search
+  useEffect(() => {
+    if (!projectPath) return
+    
+    const timeoutId = setTimeout(() => {
+      if (searchQuery.trim()) {
+        handleSearchNodes(searchQuery)
+      } else {
+        setSearchResults([])
+      }
+    }, 300) // 300ms debounce
+
+    return () => clearTimeout(timeoutId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, projectPath])
+
+  const loadDeepLinks = async () => {
+    if (!projectPath) return
+    
+    try {
+      setDeepLinksLoading(true)
+      const response = await deepLinkListDeepLinkListPost({
+        body: {
+          node_id: nodeId,
+          project_root: projectPath
+        }
+      })
+      
+      if (response.data && (response.data as any).relationships) {
+        setDeepLinks((response.data as any).relationships)
+      }
+    } catch (error) {
+      console.error('Failed to load deep links:', error)
+    } finally {
+      setDeepLinksLoading(false)
+    }
+  }
+
+  const handleSearchNodes = async (query: string) => {
+    if (!projectPath || !query.trim()) {
+      setSearchResults([])
+      return
+    }
+    
+    try {
+      setSearchLoading(true)
+      const response = await deepLinkSearchDeepLinkSearchPost({
+        body: {
+          query: query.trim(),
+          project_root: projectPath,
+          limit: 20
+        }
+      })
+      
+      if (response.data && (response.data as any).nodes) {
+        // Filter out the current node
+        const filtered = ((response.data as any).nodes as any[]).filter(
+          (n: any) => n.id !== nodeId
+        )
+        setSearchResults(filtered)
+      }
+    } catch (error) {
+      toast.error('Search failed', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      })
+    } finally {
+      setSearchLoading(false)
+    }
+  }
+
+  const handleCreateLink = async () => {
+    if (!selectedTargetId || !projectPath) return
+    
+    try {
+      await deepLinkCreateDeepLinkCreatePost({
+        body: {
+          source_id: nodeId,
+          target_id: selectedTargetId,
+          rel_type: relType,
+          properties: relNotes ? { notes: relNotes } : undefined
+        }
+      })
+      
+      toast.success('Link created', {
+        description: 'Relationship created successfully'
+      })
+      
+      // Reset form
+      setSelectedTargetId(null)
+      setRelType('RELATES_TO')
+      setRelNotes('')
+      setSearchQuery('')
+      setSearchResults([])
+      
+      // Reload links and node details
+      loadDeepLinks()
+      loadNodeDetails(projectPath)
+    } catch (error) {
+      toast.error('Failed to create link', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      })
+    }
+  }
+
+  const handleDeleteLink = async (relationshipId: string) => {
+    try {
+      await deepLinkDeleteDeepLinkDeletePost({
+        body: {
+          relationship_id: relationshipId
+        }
+      })
+      
+      toast.success('Link deleted', {
+        description: 'Relationship removed successfully'
+      })
+      
+      // Reload links and node details
+      loadDeepLinks()
+      loadNodeDetails(projectPath!)
+    } catch (error) {
+      toast.error('Failed to delete link', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      })
+    }
+  }
 
   if (loading || !details) {
     return (
@@ -339,6 +494,14 @@ export default function NodeDetailsPage() {
           >
             <FileText className="h-4 w-4 mr-2" />
             Related Nodes ({related_nodes.length})
+          </Button>
+          <Button
+            variant={activeTab === 'nurture' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setActiveTab('nurture')}
+          >
+            <Link2 className="h-4 w-4 mr-2" />
+            Nurture
           </Button>
         </div>
 
@@ -589,6 +752,189 @@ export default function NodeDetailsPage() {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {activeTab === 'nurture' && (
+          <div className="space-y-6">
+            {/* Current Links Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Current Deep Links</CardTitle>
+                <CardDescription>
+                  Manually created relationships for this node
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {deepLinksLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : deepLinks.length > 0 ? (
+                  <div className="space-y-3">
+                    {deepLinks.map((link) => (
+                      <div
+                        key={link.id}
+                        className="p-4 border rounded-lg bg-muted/30 flex items-start justify-between"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="uppercase text-xs bg-primary/10 text-primary px-2 py-1 rounded font-medium">
+                              {link.rel_type}
+                            </span>
+                            <span className="font-medium">{link.target_label}</span>
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground capitalize">
+                              {link.target_type}
+                            </span>
+                          </div>
+                          {link.target_path && (
+                            <div className="text-sm text-muted-foreground font-mono mb-1">
+                              {link.target_path}
+                            </div>
+                          )}
+                          {link.rel_notes && (
+                            <div className="text-sm text-muted-foreground mt-2 italic">
+                              {link.rel_notes}
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteLink(link.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center text-muted-foreground py-8">
+                    No deep links created yet. Create one below.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Create New Link Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Create New Link</CardTitle>
+                <CardDescription>
+                  Search for a node and create a relationship
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Search */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Search Nodes</label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search by name or path..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Search Results */}
+                  {searchLoading && (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+                  
+                  {!searchLoading && searchResults.length > 0 && (
+                    <div className="border rounded-lg max-h-60 overflow-auto">
+                      {searchResults.map((result) => (
+                        <div
+                          key={result.id}
+                          className={`p-3 border-b last:border-b-0 cursor-pointer hover:bg-accent transition-colors ${
+                            selectedTargetId === result.id ? 'bg-accent' : ''
+                          }`}
+                          onClick={() => setSelectedTargetId(result.id)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                              selectedTargetId === result.id ? 'border-primary bg-primary' : 'border-muted-foreground'
+                            }`}>
+                              {selectedTargetId === result.id && (
+                                <div className="w-2 h-2 rounded-full bg-primary-foreground" />
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{result.label}</span>
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground capitalize">
+                                  {result.type}
+                                </span>
+                              </div>
+                              {result.path && (
+                                <div className="text-xs text-muted-foreground font-mono mt-1">
+                                  {result.path}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {!searchLoading && searchQuery && searchResults.length === 0 && (
+                    <div className="text-sm text-muted-foreground text-center py-4">
+                      No nodes found matching &quot;{searchQuery}&quot;
+                    </div>
+                  )}
+                </div>
+
+                {/* Relationship Type */}
+                {selectedTargetId && (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Relationship Type</label>
+                      <Select value={relType} onValueChange={setRelType}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="RELATES_TO">Relates To</SelectItem>
+                          <SelectItem value="DEPENDS_ON">Depends On</SelectItem>
+                          <SelectItem value="USES">Uses</SelectItem>
+                          <SelectItem value="SIMILAR_TO">Similar To</SelectItem>
+                          <SelectItem value="CALLS">Calls</SelectItem>
+                          <SelectItem value="IMPORTS">Imports</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Notes (Optional) */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Notes (Optional)</label>
+                      <Textarea
+                        placeholder="Add any notes about this relationship..."
+                        value={relNotes}
+                        onChange={(e) => setRelNotes(e.target.value)}
+                        rows={3}
+                      />
+                    </div>
+
+                    {/* Create Button */}
+                    <Button
+                      onClick={handleCreateLink}
+                      className="w-full"
+                    >
+                      <Link2 className="h-4 w-4 mr-2" />
+                      Create Link
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         )}
       </div>
     </div>

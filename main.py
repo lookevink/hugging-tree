@@ -77,6 +77,20 @@ class NodeDetailsRequest(BaseModel):
     node_id: str
     project_root: str
 
+class DeepLinkSearchRequest(BaseModel):
+    query: str
+    project_root: str
+    limit: int = 20
+
+class DeepLinkCreateRequest(BaseModel):
+    source_id: str
+    target_id: str
+    rel_type: str
+    properties: Optional[Dict[str, Any]] = None
+
+class DeepLinkDeleteRequest(BaseModel):
+    relationship_id: str
+
 # --- 3. SHARED LOGIC ---
 
 def logic_scan(path: str) -> Dict[str, Any]:
@@ -442,6 +456,88 @@ async def get_node_details(request: NodeDetailsRequest):
             return graph.get_node_details(request.node_id, request.project_root)
         finally:
             graph.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api.post("/deep-link/search")
+async def deep_link_search(request: DeepLinkSearchRequest):
+    """
+    Searches for nodes (Files and Definitions) matching the query string.
+    Used for finding nodes to link in the Deep Link feature.
+    """
+    try:
+        graph = GraphDB()
+        try:
+            nodes = graph.search_nodes(request.query, request.project_root, request.limit)
+            return {
+                "nodes": nodes,
+                "total": len(nodes)
+            }
+        finally:
+            graph.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api.post("/deep-link/create")
+async def deep_link_create(request: DeepLinkCreateRequest):
+    """
+    Creates a manual relationship (deep link) between two nodes.
+    """
+    try:
+        graph = GraphDB()
+        try:
+            relationship_id = graph.create_deep_link_relationship(
+                request.source_id,
+                request.target_id,
+                request.rel_type,
+                request.properties or {}
+            )
+            return {
+                "status": "success",
+                "relationship_id": relationship_id
+            }
+        finally:
+            graph.close()
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api.post("/deep-link/list")
+async def deep_link_list(request: NodeDetailsRequest):
+    """
+    Gets all deep link relationships for a given node.
+    """
+    try:
+        graph = GraphDB()
+        try:
+            relationships = graph.get_deep_link_relationships(request.node_id, request.project_root)
+            return {
+                "relationships": relationships,
+                "total": len(relationships)
+            }
+        finally:
+            graph.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api.post("/deep-link/delete")
+async def deep_link_delete(request: DeepLinkDeleteRequest):
+    """
+    Deletes a deep link relationship by its ID.
+    """
+    try:
+        graph = GraphDB()
+        try:
+            deleted = graph.delete_deep_link_relationship(request.relationship_id)
+            if deleted:
+                return {"status": "success"}
+            else:
+                raise HTTPException(status_code=404, detail="Relationship not found")
+        finally:
+            graph.close()
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

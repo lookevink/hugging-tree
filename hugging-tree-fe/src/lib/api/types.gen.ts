@@ -31,6 +31,58 @@ export type AnalyzeRequest = {
 };
 
 /**
+ * DeepLinkCreateRequest
+ */
+export type DeepLinkCreateRequest = {
+    /**
+     * Source Id
+     */
+    source_id: string;
+    /**
+     * Target Id
+     */
+    target_id: string;
+    /**
+     * Rel Type
+     */
+    rel_type: string;
+    /**
+     * Properties
+     */
+    properties?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * DeepLinkDeleteRequest
+ */
+export type DeepLinkDeleteRequest = {
+    /**
+     * Relationship Id
+     */
+    relationship_id: string;
+};
+
+/**
+ * DeepLinkSearchRequest
+ */
+export type DeepLinkSearchRequest = {
+    /**
+     * Query
+     */
+    query: string;
+    /**
+     * Project Root
+     */
+    project_root: string;
+    /**
+     * Limit
+     */
+    limit?: number;
+};
+
+/**
  * DeepTraceAnalyzeRequest
  */
 export type DeepTraceAnalyzeRequest = {
@@ -366,6 +418,98 @@ export type GetNodeDetailsNodeDetailsPostErrors = {
 export type GetNodeDetailsNodeDetailsPostError = GetNodeDetailsNodeDetailsPostErrors[keyof GetNodeDetailsNodeDetailsPostErrors];
 
 export type GetNodeDetailsNodeDetailsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type DeepLinkSearchDeepLinkSearchPostData = {
+    body: DeepLinkSearchRequest;
+    path?: never;
+    query?: never;
+    url: '/deep-link/search';
+};
+
+export type DeepLinkSearchDeepLinkSearchPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeepLinkSearchDeepLinkSearchPostError = DeepLinkSearchDeepLinkSearchPostErrors[keyof DeepLinkSearchDeepLinkSearchPostErrors];
+
+export type DeepLinkSearchDeepLinkSearchPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type DeepLinkCreateDeepLinkCreatePostData = {
+    body: DeepLinkCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/deep-link/create';
+};
+
+export type DeepLinkCreateDeepLinkCreatePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeepLinkCreateDeepLinkCreatePostError = DeepLinkCreateDeepLinkCreatePostErrors[keyof DeepLinkCreateDeepLinkCreatePostErrors];
+
+export type DeepLinkCreateDeepLinkCreatePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type DeepLinkListDeepLinkListPostData = {
+    body: NodeDetailsRequest;
+    path?: never;
+    query?: never;
+    url: '/deep-link/list';
+};
+
+export type DeepLinkListDeepLinkListPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeepLinkListDeepLinkListPostError = DeepLinkListDeepLinkListPostErrors[keyof DeepLinkListDeepLinkListPostErrors];
+
+export type DeepLinkListDeepLinkListPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type DeepLinkDeleteDeepLinkDeletePostData = {
+    body: DeepLinkDeleteRequest;
+    path?: never;
+    query?: never;
+    url: '/deep-link/delete';
+};
+
+export type DeepLinkDeleteDeepLinkDeletePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeepLinkDeleteDeepLinkDeletePostError = DeepLinkDeleteDeepLinkDeletePostErrors[keyof DeepLinkDeleteDeepLinkDeletePostErrors];
+
+export type DeepLinkDeleteDeepLinkDeletePostResponses = {
     /**
      * Successful Response
      */

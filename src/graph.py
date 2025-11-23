@@ -915,3 +915,228 @@ class GraphDB:
             RETURN r
             """
             session.run(query, s_id=s_id, t_id=t_id, props=props or {})
+
+    def search_nodes(self, query: str, project_root: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """
+        Searches for nodes (Files and Definitions) matching the query string.
+        Searches by name and path using fuzzy matching.
+        """
+        with self.driver.session() as session:
+            search_pattern = f".*{query}.*"
+            nodes = []
+            
+            # Search Definitions
+            def_query = """
+            MATCH (file:File)-[:DEFINES]->(def:Definition)
+            WHERE file.project_root = $project_root
+            AND (
+                def.name =~ $pattern
+                OR file.path =~ $pattern
+                OR def.name CONTAINS $search_text
+                OR file.path CONTAINS $search_text
+            )
+            RETURN def, file.path as file_path
+            ORDER BY 
+                CASE WHEN def.name = $search_text THEN 1 ELSE 2 END,
+                CASE WHEN def.name STARTS WITH $search_text THEN 1 ELSE 2 END,
+                def.name
+            LIMIT $limit
+            """
+            
+            for record in session.run(def_query, project_root=project_root, pattern=search_pattern, search_text=query, limit=limit):
+                def_node = record['def']
+                file_path = record['file_path']
+                nodes.append({
+                    'id': f"def:{def_node['id']}",
+                    'label': def_node['name'],
+                    'type': def_node['type'].lower() if def_node.get('type') else 'definition',
+                    'path': file_path,
+                    'properties': {
+                        'name': def_node['name'],
+                        'file_path': file_path,
+                        'start_line': def_node.get('start_line'),
+                        'end_line': def_node.get('end_line'),
+                    }
+                })
+            
+            # Search Files (if we haven't hit the limit)
+            remaining_limit = limit - len(nodes)
+            if remaining_limit > 0:
+                file_query = """
+                MATCH (file:File)
+                WHERE file.project_root = $project_root
+                AND (
+                    file.path =~ $pattern
+                    OR file.path CONTAINS $search_text
+                )
+                RETURN file
+                ORDER BY 
+                    CASE WHEN file.path = $search_text THEN 1 ELSE 2 END,
+                    CASE WHEN file.path STARTS WITH $search_text THEN 1 ELSE 2 END,
+                    file.path
+                LIMIT $limit
+                """
+                
+                for record in session.run(file_query, project_root=project_root, pattern=search_pattern, search_text=query, limit=remaining_limit):
+                    file_node = record['file']
+                    nodes.append({
+                        'id': f"file:{file_node['path']}",
+                        'label': file_node['path'].split('/')[-1],  # Filename
+                        'type': 'file',
+                        'path': file_node['path'],
+                        'properties': {
+                            'path': file_node['path'],
+                        }
+                    })
+            
+            return nodes
+
+    def create_deep_link_relationship(self, source_id: str, target_id: str, rel_type: str, properties: Dict[str, Any] = None) -> str:
+        """
+        Creates a relationship between two nodes via Deep Link (manual linking).
+        Returns the relationship ID.
+        """
+        with self.driver.session() as session:
+            # Determine node labels/types and matching property based on ID prefix
+            def get_label_and_match(node_id: str):
+                if node_id.startswith("def:"):
+                    node_id_value = node_id[4:]  # Strip 'def:' prefix
+                    return "Definition", "id", node_id_value
+                elif node_id.startswith("file:"):
+                    node_id_value = node_id[5:]  # Strip 'file:' prefix
+                    return "File", "path", node_id_value
+                elif node_id.startswith("api:"):
+                    node_id_value = node_id[4:]  # Strip 'api:' prefix
+                    return "ApiEndpoint", "id", node_id_value
+                else:
+                    # Default to Definition for backward compatibility
+                    return "Definition", "id", node_id
+            
+            source_label, source_prop, source_value = get_label_and_match(source_id)
+            target_label, target_prop, target_value = get_label_and_match(target_id)
+            
+            # Prepare relationship properties
+            rel_props = {
+                'source': 'deep_link',
+                **(properties or {})
+            }
+            
+            # Create relationship with timestamp
+            # Use dynamic property matching based on node type
+            # Note: We need to use parameterized queries, but Neo4j doesn't support parameterized property names
+            # So we'll construct the query with the property names directly (safe since they're from our own parsing)
+            query = f"""
+            MATCH (s:{source_label})
+            WHERE s.{source_prop} = $s_value
+            MATCH (t:{target_label})
+            WHERE t.{target_prop} = $t_value
+            MERGE (s)-[r:{rel_type}]->(t)
+            SET r += $props,
+                r.created_at = timestamp()
+            RETURN id(r) as rel_id, r
+            """
+            
+            result = session.run(query, s_value=source_value, t_value=target_value, props=rel_props)
+            record = result.single()
+            
+            if record:
+                return str(record['rel_id'])
+            else:
+                raise ValueError(f"Could not create relationship. One or both nodes not found: {source_id} -> {target_id}")
+
+    def get_deep_link_relationships(self, node_id: str, project_root: str) -> List[Dict[str, Any]]:
+        """
+        Gets all deep link relationships for a given node.
+        Returns relationships where source = 'deep_link'.
+        """
+        with self.driver.session() as session:
+            def get_label_and_match(node_id: str):
+                if node_id.startswith("def:"):
+                    node_id_value = node_id[4:]
+                    return "Definition", "id", node_id_value
+                elif node_id.startswith("file:"):
+                    node_id_value = node_id[5:]
+                    return "File", "path", node_id_value
+                elif node_id.startswith("api:"):
+                    node_id_value = node_id[4:]
+                    return "ApiEndpoint", "id", node_id_value
+                else:
+                    return "Definition", "id", node_id
+            
+            node_label, node_prop, node_value = get_label_and_match(node_id)
+            
+            # Get outgoing relationships
+            query = f"""
+            MATCH (n:{node_label})
+            WHERE n.{node_prop} = $n_value
+            MATCH (n)-[r]->(target)
+            WHERE r.source = 'deep_link'
+            OPTIONAL MATCH (target_file:File)-[:DEFINES]->(target)
+            WITH r, target, 
+                 CASE 
+                     WHEN target:Definition THEN target_file.path
+                     WHEN target:File THEN target.path
+                     ELSE null
+                 END as target_path,
+                 CASE
+                     WHEN target:Definition THEN target.name
+                     WHEN target:File THEN target.path
+                     ELSE toString(id(target))
+                 END as target_label,
+                 CASE
+                     WHEN target:Definition THEN target.type
+                     WHEN target:File THEN 'file'
+                     ELSE 'unknown'
+                 END as target_type
+            RETURN 
+                type(r) as rel_type,
+                id(r) as rel_id,
+                target.id as target_id,
+                target_label,
+                target_type,
+                target_path,
+                r.label as rel_label,
+                r.notes as rel_notes,
+                r.created_at as created_at
+            ORDER BY r.created_at DESC
+            """
+            
+            relationships = []
+            for record in session.run(query, n_value=node_value):
+                # Determine target node ID format
+                target_id = record['target_id']
+                if target_id and not target_id.startswith(('def:', 'file:', 'api:')):
+                    # Reconstruct ID based on type
+                    if record['target_type'] == 'file':
+                        target_id = f"file:{target_id}"
+                    else:
+                        target_id = f"def:{target_id}"
+                
+                relationships.append({
+                    'id': str(record['rel_id']),
+                    'rel_type': record['rel_type'],
+                    'target_id': target_id or record['target_id'],
+                    'target_label': record['target_label'],
+                    'target_type': record['target_type'],
+                    'target_path': record['target_path'],
+                    'rel_label': record['rel_label'],
+                    'rel_notes': record['rel_notes'],
+                    'created_at': record['created_at'],
+                })
+            
+            return relationships
+
+    def delete_deep_link_relationship(self, relationship_id: str) -> bool:
+        """
+        Deletes a deep link relationship by its ID.
+        """
+        with self.driver.session() as session:
+            query = """
+            MATCH ()-[r]->()
+            WHERE id(r) = $rel_id AND r.source = 'deep_link'
+            DELETE r
+            RETURN count(r) as deleted
+            """
+            result = session.run(query, rel_id=int(relationship_id))
+            record = result.single()
+            return record['deleted'] > 0 if record else False
