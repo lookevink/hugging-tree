@@ -9,51 +9,51 @@ While `analyze` provides exploratory insights and understanding, `plan` generate
 ## Core Capabilities
 
 ### Task Breakdown
-- [ ] Break down feature requests into concrete, executable steps
-- [ ] Order steps by dependencies and priority
-- [ ] Identify prerequisites for each step
-- [ ] Estimate complexity/difficulty for each step
-- [ ] Group related steps into phases/milestones
+- [x] Break down feature requests into concrete, executable steps (via LLM)
+- [x] Order steps by dependencies and priority (prompt instructs LLM to do this)
+- [x] Identify prerequisites for each step (prompt instructs LLM to do this)
+- [x] Estimate complexity/difficulty for each step (estimated_effort in XML)
+- [x] Group related steps into phases/milestones (phases in XML schema)
 
 ### XML Output Format
-- [ ] Generate structured XML plan optimized for AI tools
-- [ ] Include task metadata (title, description, estimated effort)
-- [ ] Include file-level changes (which files to create/modify)
-- [ ] Include step-by-step instructions with code references
-- [ ] Include context snippets for each step
-- [ ] Include validation criteria for each step
-- [ ] Include rollback instructions if needed
+- [x] Generate structured XML plan optimized for AI tools
+- [x] Include task metadata (title, description, estimated effort)
+- [x] Include file-level changes (which files to create/modify)
+- [x] Include step-by-step instructions with code references
+- [x] Include context snippets for each step
+- [x] Include validation criteria for each step
+- [x] Include rollback instructions if needed
 
 ### Semantic Search Integration
-- [ ] Find code semantically similar to task description
-- [ ] Use vector embeddings for semantic matching
-- [ ] Configurable number of semantic matches (default: 10)
+- [x] Find code semantically similar to task description
+- [x] Use vector embeddings for semantic matching
+- [x] Configurable number of semantic matches (default: 10)
 
 ### Graph Analysis
-- [ ] Analyze dependencies (files that import modified files)
-- [ ] Analyze callers (functions that call modified functions)
-- [ ] Analyze callees (functions called by modified code)
-- [ ] Identify impact radius for each step
-- [ ] Build comprehensive context packet
+- [x] Analyze dependencies (files that import modified files)
+- [x] Analyze callers (functions that call modified functions)
+- [x] Analyze callees (functions called by modified code)
+- [x] Identify impact radius for each step (via impact_analysis in XML)
+- [x] Build comprehensive context packet
 
 ### LLM Planning
-- [ ] Use Gemini models for plan generation
-- [ ] Generate executable steps (not just analysis)
-- [ ] Include specific code locations and references
-- [ ] Include code snippets/examples for each step
-- [ ] Model configuration support
-  - [ ] Default: `gemini-3-pro-preview`
-  - [ ] Support for `gemini-2.5-pro`
-  - [ ] Support for `gemini-2.5-flash`
-  - [ ] Support for `gemini-2.5-flash-lite`
-  - [ ] Environment variable configuration (`GEMINI_MODEL`)
-  - [ ] Per-command model override (`--model` flag)
-- [ ] Prompt customization
-  - [ ] Custom prompt templates via file (`--prompt-template` flag)
-  - [ ] Environment variable for prompt template path (`PLAN_PROMPT_TEMPLATE`)
-  - [ ] Template variable substitution (task, xml_context, etc.)
-  - [ ] Default built-in prompts if none provided
-  - [ ] Prompt validation and error handling
+- [x] Use Gemini models for plan generation
+- [x] Generate executable steps (not just analysis)
+- [x] Include specific code locations and references
+- [x] Include code snippets/examples for each step
+- [x] Model configuration support
+  - [x] Default: `gemini-3-pro-preview`
+  - [x] Support for `gemini-2.5-pro`
+  - [x] Support for `gemini-2.5-flash`
+  - [x] Support for `gemini-2.5-flash-lite`
+  - [x] Environment variable configuration (`GEMINI_MODEL`)
+  - [x] Per-command model override (`--model` flag)
+- [x] Prompt customization
+  - [x] Custom prompt templates via file (`--prompt-template` flag)
+  - [x] Environment variable for prompt template path (`PLAN_PROMPT_TEMPLATE`)
+  - [x] Template variable substitution (task, xml_context, etc.)
+  - [x] Default built-in prompts if none provided
+  - [x] Prompt validation and error handling
 
 ## XML Schema
 
@@ -143,11 +143,11 @@ The plan XML should follow a structure like:
 
 ## Use Cases
 
-- [ ] Feature implementation planning
-- [ ] Bug fix execution plans
-- [ ] Refactoring execution plans
-- [ ] Migration plans
-- [ ] Integration plans
+- [x] Feature implementation planning
+- [x] Bug fix execution plans
+- [x] Refactoring execution plans
+- [x] Migration plans
+- [x] Integration plans
 
 ## Differences from Analyze
 
@@ -162,16 +162,16 @@ The plan XML should follow a structure like:
 
 ## Implementation Status
 
-- [ ] Plan generator module (`src/planner.py`)
-- [ ] Semantic search integration
-- [ ] Graph analysis integration
-- [ ] LLM prompt building for plan generation
-- [ ] XML plan generation
-- [ ] Step dependency resolution
-- [ ] CLI command (`main.py plan`)
-- [ ] Model configuration support
-- [ ] XML schema validation
-- [ ] Prompt customization (planned)
+- [x] Plan generator module (`src/planner.py`)
+- [x] Semantic search integration
+- [x] Graph analysis integration
+- [x] LLM prompt building for plan generation
+- [x] XML plan generation
+- [x] Step dependency resolution (via LLM prompt instructions)
+- [x] CLI command (`main.py plan`)
+- [x] Model configuration support
+- [ ] XML schema validation (not implemented - relies on LLM to generate valid XML)
+- [x] Prompt customization
 
 ## Prompt Customization
 
