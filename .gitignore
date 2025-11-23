@@ -18,16 +18,16 @@ yarn-error.log*
 .pnp.js
 
 # Next.js
-frontend/.next/
-frontend/out/
-frontend/.env*.local
-frontend/.vercel
+hugging-tree-fe/.next/
+hugging-tree-fe/out/
+hugging-tree-fe/.env*.local
+hugging-tree-fe/.vercel
 
 # OpenAPI
 openapi.json
 
 # Generated SDK
-frontend/src/lib/api/
+hugging-tree-fe/src/lib/api/
 
 # IDE
 .vscode/

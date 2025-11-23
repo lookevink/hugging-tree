@@ -26,7 +26,7 @@ fi
 echo "📝 Generating OpenAPI specification..."
 python scripts/generate-openapi.py || {
     echo "⚠️  OpenAPI generation failed. This is okay if the server isn't running."
-    echo "   You can generate it later by running: npm run generate:openapi"
+    echo "   You can generate it later by running: python scripts/generate-openapi.py"
     echo "   Or start the server first: uvicorn main:api --port 8088"
 }
 
