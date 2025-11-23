@@ -610,7 +610,7 @@ class GraphDB:
                 'edges': edges
             }
             
-    def get_node_source(self, node_id: str) -> Optional[str]:
+    def get_node_source(self, node_id: str, project_root: str = None) -> Optional[str]:
         """
         Retrieves the source code for a given node (File or Definition).
         """
@@ -631,6 +631,11 @@ class GraphDB:
                 # For files, we might need to read from disk if we don't store full content in DB
                 # But we have the path
                 path = node_id[5:] # Strip 'file:' prefix
+                
+                # Handle relative paths if project_root is provided
+                if project_root and not os.path.isabs(path):
+                    path = os.path.join(project_root, path)
+                    
                 if os.path.exists(path):
                     try:
                         with open(path, 'r', encoding='utf-8') as f:

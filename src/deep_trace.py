@@ -12,14 +12,14 @@ class DeepTraceService:
             print("Warning: GOOGLE_API_KEY not set. Deep Trace will not work.")
         else:
             genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
+            self.model = genai.GenerativeModel('gemini-2.5-flash')
 
     def analyze_node(self, node_id: str, project_root: str) -> Dict[str, Any]:
         """
         Analyzes a node to find implicit relationships.
         """
         # 1. Get source code
-        source_code = self.graph.get_node_source(node_id)
+        source_code = self.graph.get_node_source(node_id, project_root)
         if not source_code:
             return {"error": "Could not retrieve source code for node."}
 
