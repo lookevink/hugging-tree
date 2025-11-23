@@ -1,0 +1,19 @@
+# OpenAPI Generator Ignore File
+# This file allows you to ignore certain files or directories when generating code
+
+# Ignore git files
+.git/
+.gitignore
+
+# Ignore node_modules
+node_modules/
+
+# Ignore build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Keep only the generated API files
+!**/api/**
+!**/models/**
+

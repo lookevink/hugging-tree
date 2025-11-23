@@ -1,6 +1,51 @@
-.env
-src/__pycache__/*
-
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
 
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp
+.pnp.js
+
+# Next.js
+frontend/.next/
+frontend/out/
+frontend/.env*.local
+frontend/.vercel
+
+# OpenAPI
+openapi.json
+
+# Generated SDK
+frontend/src/lib/api/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Docker
+*.log
+
+# Tree Roots
 .tree_roots/

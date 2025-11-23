@@ -200,6 +200,58 @@ curl -X POST "http://localhost:8000/analyze" \
 
 For detailed API documentation, see [API Documentation](.agent/sys/api/README.md).
 
+## Web UI
+
+Hugging Tree includes a modern Next.js web interface for visual interaction with the tool.
+
+### Starting the Web UI
+
+**Docker** (Recommended):
+```bash
+# Start all services including frontend
+docker compose up -d --build
+
+# Access the web UI at http://localhost:3000
+```
+
+**Local Development**:
+```bash
+# First, generate OpenAPI spec and setup frontend
+./scripts/setup-frontend.sh
+
+# Start the frontend development server
+cd frontend
+npm run dev
+
+# Access at http://localhost:3000
+```
+
+### Features
+
+The web UI provides visual interfaces for:
+- **Projects**: Browse and select projects from your PROJECTS_ROOT
+- **Scan**: Scan repositories and sync to Neo4j and ChromaDB
+- **Query**: Semantic search with graph context expansion
+- **Analyze**: Task analysis with actionable insights
+- **Plan**: Generate executable plans in XML format
+
+### OpenAPI SDK Generation
+
+The frontend uses an auto-generated TypeScript SDK from the FastAPI OpenAPI specification:
+
+```bash
+# Generate OpenAPI spec from FastAPI
+npm run generate:openapi
+
+# Generate TypeScript SDK from OpenAPI spec
+npm run generate:sdk
+
+# Or do both at once
+npm run generate:all
+```
+
+The generated SDK will be available at `frontend/src/lib/api/` and can be imported in your components.
+
 ## Documentation
 
 This project uses a structured documentation system in the `.agent` directory:

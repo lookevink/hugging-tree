@@ -2,7 +2,7 @@ import typer
 import os
 import subprocess
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 
@@ -45,6 +45,7 @@ class PlanRequest(BaseModel):
     n: int = 10
     model: Optional[str] = None
     prompt_template: Optional[str] = None
+    format: Optional[str] = "json" # "json" or "xml"
 
 # --- 3. SHARED LOGIC ---
 
@@ -343,7 +344,12 @@ def api_analyze(request: AnalyzeRequest):
 @api.post("/plan")
 def api_plan(request: PlanRequest):
     try:
-        return logic_plan(request.task, request.path, request.n, request.model, request.prompt_template)
+        result = logic_plan(request.task, request.path, request.n, request.model, request.prompt_template)
+        
+        if request.format == "xml":
+            return Response(content=result["plan_xml"], media_type="application/xml")
+            
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
