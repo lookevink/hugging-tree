@@ -73,6 +73,10 @@ class DeepTraceApplyRequest(BaseModel):
     target_id: str
     rel_type: str
 
+class NodeDetailsRequest(BaseModel):
+    node_id: str
+    project_root: str
+
 # --- 3. SHARED LOGIC ---
 
 def logic_scan(path: str) -> Dict[str, Any]:
@@ -424,6 +428,20 @@ async def deep_trace_apply(request: DeepTraceApplyRequest):
         service = DeepTraceService(graph)
         service.apply_relationship(request.source_id, request.target_id, request.rel_type)
         return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api.post("/node/details")
+async def get_node_details(request: NodeDetailsRequest):
+    """
+    Gets comprehensive details for a node including source code, related nodes, and metadata.
+    """
+    try:
+        graph = GraphDB()
+        try:
+            return graph.get_node_details(request.node_id, request.project_root)
+        finally:
+            graph.close()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -1,0 +1,376 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Loader2, ArrowLeft, Code, Network, FileText, Info } from 'lucide-react'
+import { toast } from 'sonner'
+import '@/src/lib/api-client'
+import { getNodeDetailsNodeDetailsPost } from '@/src/lib/api'
+
+// Dynamically import InteractiveNvlWrapper to avoid SSR issues
+const InteractiveNvlWrapper = dynamic(
+  () => {
+    return import('@neo4j-nvl/react').then((mod) => {
+      if (typeof window !== 'undefined') {
+        const originalWorker = window.Worker
+        window.Worker = class extends originalWorker {
+          constructor(scriptURL: string | URL, options?: WorkerOptions) {
+            const urlStr = typeof scriptURL === 'string' ? scriptURL : scriptURL.toString()
+            try {
+              super(scriptURL, options)
+            } catch (error) {
+              console.error('Worker creation failed:', error, 'URL:', urlStr)
+              super(scriptURL, options)
+            }
+          }
+        } as typeof Worker
+      }
+      return mod.InteractiveNvlWrapper
+    }).catch((error) => {
+      console.error('Failed to load InteractiveNvlWrapper:', error)
+      throw error
+    })
+  },
+  { 
+    ssr: false,
+    loading: () => <div className="flex items-center justify-center h-full text-sm text-muted-foreground">Loading graph...</div>
+  }
+)
+
+interface NodeDetails {
+  node: {
+    id: string
+    label: string
+    type: string
+    path?: string
+    properties?: Record<string, unknown>
+  }
+  source_code: string | null
+  related_nodes: Array<{
+    id: string
+    label: string
+    type: string
+    path?: string
+    properties?: Record<string, unknown>
+  }>
+  related_edges: Array<{
+    id: string
+    source: string
+    target: string
+    type: string
+    label: string
+  }>
+}
+
+export default function NodeDetailsPage() {
+  const params = useParams()
+  const router = useRouter()
+  const nodeId = decodeURIComponent(params.nodeId as string)
+  const [projectPath, setProjectPath] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [details, setDetails] = useState<NodeDetails | null>(null)
+  const [activeTab, setActiveTab] = useState<'code' | 'graph' | 'list'>('code')
+
+  const loadNodeDetails = useCallback(async (projectRoot: string) => {
+    try {
+      setLoading(true)
+      const response = await getNodeDetailsNodeDetailsPost({
+        body: {
+          node_id: nodeId,
+          project_root: projectRoot,
+        },
+      })
+
+      if (response.data) {
+        setDetails(response.data as unknown as NodeDetails)
+      }
+    } catch (error) {
+      toast.error('Error', {
+        description: error instanceof Error ? error.message : 'Failed to load node details',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [nodeId])
+
+  useEffect(() => {
+    // Get project path from query params or localStorage
+    const urlParams = new URLSearchParams(window.location.search)
+    const path = urlParams.get('project') || localStorage.getItem('lastProjectPath')
+    if (path) {
+      setProjectPath(path)
+      loadNodeDetails(path)
+    } else {
+      toast.error('Project path not found')
+      router.push('/')
+    }
+  }, [nodeId, router, loadNodeDetails])
+
+  if (loading || !details) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center h-96">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const { node, source_code, related_nodes, related_edges } = details
+
+  // Convert to NVL format for graph visualization
+  const convertToNvlFormat = (nodes: typeof related_nodes, edges: typeof related_edges, centerNode: typeof node) => {
+    const allNodes = [centerNode, ...nodes]
+    const nvlNodes = allNodes.map((n) => ({
+      id: n.id,
+      captions: [{ value: n.label }],
+      labels: [n.type],
+      properties: {
+        ...n.properties,
+        label: n.label,
+        path: n.path || '',
+        type: n.type,
+      },
+    }))
+
+    const nvlRels = edges.map((e) => ({
+      id: e.id,
+      from: e.source,
+      to: e.target,
+      captions: [{ value: e.label || e.type }],
+      type: e.type,
+      properties: {
+        label: e.label,
+        type: e.type,
+      },
+    }))
+
+    return { nodes: nvlNodes, relationships: nvlRels }
+  }
+
+  const nvlData = convertToNvlFormat(related_nodes, related_edges, node)
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-6">
+          <Button variant="ghost" size="sm" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+        </div>
+
+        {/* Node Header */}
+        <Card className="mb-6">
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Info className="h-5 w-5" />
+                  {node.label}
+                </CardTitle>
+                <CardDescription className="mt-2">
+                  <span className="capitalize">{node.type}</span>
+                  {node.path && (
+                    <>
+                      {' • '}
+                      <span className="font-mono text-xs">{node.path}</span>
+                    </>
+                  )}
+                </CardDescription>
+              </div>
+              {node.properties && Object.keys(node.properties).length > 0 && (
+                <div className="text-sm text-muted-foreground">
+                  {node.properties.start_line != null && node.properties.end_line != null && (
+                    <div>
+                      Lines: {String(node.properties.start_line)} - {String(node.properties.end_line)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </CardHeader>
+        </Card>
+
+        {/* Tabs */}
+        <div className="flex gap-2 mb-4">
+          <Button
+            variant={activeTab === 'code' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setActiveTab('code')}
+          >
+            <Code className="h-4 w-4 mr-2" />
+            Source Code
+          </Button>
+          <Button
+            variant={activeTab === 'graph' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setActiveTab('graph')}
+          >
+            <Network className="h-4 w-4 mr-2" />
+            Graph View ({related_nodes.length})
+          </Button>
+          <Button
+            variant={activeTab === 'list' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setActiveTab('list')}
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            Related Nodes ({related_nodes.length})
+          </Button>
+        </div>
+
+        {/* Content */}
+        {activeTab === 'code' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Source Code</CardTitle>
+              <CardDescription>
+                {node.type === 'function' || node.type === 'class'
+                  ? `${node.type} definition`
+                  : 'File contents'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {source_code ? (
+                <pre className="bg-muted p-4 rounded-md overflow-auto text-sm max-h-[600px]">
+                  <code>{source_code}</code>
+                </pre>
+              ) : (
+                <div className="text-muted-foreground text-center py-8">
+                  No source code available
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {activeTab === 'graph' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Related Nodes Graph</CardTitle>
+              <CardDescription>
+                Showing {related_nodes.length} related node{related_nodes.length !== 1 ? 's' : ''}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="relative border rounded-lg" style={{ height: '600px' }}>
+                <div className="absolute bottom-2 left-2 z-10 px-2 py-1 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm rounded pointer-events-none">
+                  Scroll to zoom • Click & drag to pan • Click node for details
+                </div>
+                <div style={{ width: '100%', height: '100%' }}>
+                  <InteractiveNvlWrapper
+                    nodes={nvlData.nodes}
+                    rels={nvlData.relationships}
+                    nvlOptions={{
+                      initialZoom: 1.0,
+                      minZoom: 0.1,
+                      maxZoom: 4.0,
+                    }}
+                    mouseEventCallbacks={{
+                      onNodeClick: (clickedNode: unknown) => {
+                        if (clickedNode && typeof clickedNode === 'object' && 'id' in clickedNode) {
+                          const clickedNodeId = clickedNode.id as string
+                          const url = `/node/${encodeURIComponent(clickedNodeId)}?project=${encodeURIComponent(projectPath!)}`
+                          window.open(url, '_blank')
+                        }
+                      },
+                      onRelationshipClick: () => {},
+                      onZoom: () => {},
+                      onPan: () => {},
+                    }}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {activeTab === 'list' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Related Nodes</CardTitle>
+              <CardDescription>
+                {related_nodes.length} related node{related_nodes.length !== 1 ? 's' : ''} found
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {related_nodes.length > 0 ? (
+                <div className="space-y-3">
+                  {related_nodes.map((relatedNode) => {
+                    const edges = related_edges.filter(
+                      (e) => e.source === node.id && e.target === relatedNode.id
+                        || e.target === node.id && e.source === relatedNode.id
+                    )
+                    return (
+                      <div
+                        key={relatedNode.id}
+                        className="p-4 border rounded-lg hover:bg-accent/50 transition-colors"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="font-medium">{relatedNode.label}</span>
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground capitalize">
+                                {relatedNode.type}
+                              </span>
+                            </div>
+                            {relatedNode.path && (
+                              <div className="text-sm text-muted-foreground font-mono mb-2">
+                                {relatedNode.path}
+                              </div>
+                            )}
+                            {edges.length > 0 && (
+                              <div className="text-xs text-muted-foreground">
+                                <span className="font-medium">Relationships:</span>{' '}
+                                {edges.map((e) => (
+                                  <span key={e.id} className="capitalize mr-2">
+                                    {e.type}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {relatedNode.properties && (
+                              <div className="mt-2 text-xs text-muted-foreground">
+                                {Object.entries(relatedNode.properties).map(([key, value]) => (
+                                  <div key={key}>
+                                    <span className="font-medium">{key}:</span>{' '}
+                                    {String(value)}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const url = `/node/${encodeURIComponent(relatedNode.id)}?project=${encodeURIComponent(projectPath!)}`
+                              window.open(url, '_blank')
+                            }}
+                          >
+                            View Details
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="text-center text-muted-foreground py-8">
+                  No related nodes found
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  )
+}
+

@@ -91,6 +91,20 @@ export type HttpValidationError = {
 };
 
 /**
+ * NodeDetailsRequest
+ */
+export type NodeDetailsRequest = {
+    /**
+     * Node Id
+     */
+    node_id: string;
+    /**
+     * Project Root
+     */
+    project_root: string;
+};
+
+/**
  * PlanRequest
  */
 export type PlanRequest = {
@@ -329,6 +343,29 @@ export type DeepTraceApplyDeepTraceApplyPostErrors = {
 export type DeepTraceApplyDeepTraceApplyPostError = DeepTraceApplyDeepTraceApplyPostErrors[keyof DeepTraceApplyDeepTraceApplyPostErrors];
 
 export type DeepTraceApplyDeepTraceApplyPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type GetNodeDetailsNodeDetailsPostData = {
+    body: NodeDetailsRequest;
+    path?: never;
+    query?: never;
+    url: '/node/details';
+};
+
+export type GetNodeDetailsNodeDetailsPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetNodeDetailsNodeDetailsPostError = GetNodeDetailsNodeDetailsPostErrors[keyof GetNodeDetailsNodeDetailsPostErrors];
+
+export type GetNodeDetailsNodeDetailsPostResponses = {
     /**
      * Successful Response
      */

@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ApiAnalyzeAnalyzePostData, ApiAnalyzeAnalyzePostErrors, ApiAnalyzeAnalyzePostResponses, ApiListProjectsProjectsGetData, ApiListProjectsProjectsGetResponses, ApiPlanPlanPostData, ApiPlanPlanPostErrors, ApiPlanPlanPostResponses, ApiQueryQueryPostData, ApiQueryQueryPostErrors, ApiQueryQueryPostResponses, ApiScanScanPostData, ApiScanScanPostErrors, ApiScanScanPostResponses, DeepTraceAnalyzeDeepTraceAnalyzePostData, DeepTraceAnalyzeDeepTraceAnalyzePostErrors, DeepTraceAnalyzeDeepTraceAnalyzePostResponses, DeepTraceApplyDeepTraceApplyPostData, DeepTraceApplyDeepTraceApplyPostErrors, DeepTraceApplyDeepTraceApplyPostResponses, GetGraphGraphPostData, GetGraphGraphPostErrors, GetGraphGraphPostResponses } from './types.gen';
+import type { ApiAnalyzeAnalyzePostData, ApiAnalyzeAnalyzePostErrors, ApiAnalyzeAnalyzePostResponses, ApiListProjectsProjectsGetData, ApiListProjectsProjectsGetResponses, ApiPlanPlanPostData, ApiPlanPlanPostErrors, ApiPlanPlanPostResponses, ApiQueryQueryPostData, ApiQueryQueryPostErrors, ApiQueryQueryPostResponses, ApiScanScanPostData, ApiScanScanPostErrors, ApiScanScanPostResponses, DeepTraceAnalyzeDeepTraceAnalyzePostData, DeepTraceAnalyzeDeepTraceAnalyzePostErrors, DeepTraceAnalyzeDeepTraceAnalyzePostResponses, DeepTraceApplyDeepTraceApplyPostData, DeepTraceApplyDeepTraceApplyPostErrors, DeepTraceApplyDeepTraceApplyPostResponses, GetGraphGraphPostData, GetGraphGraphPostErrors, GetGraphGraphPostResponses, GetNodeDetailsNodeDetailsPostData, GetNodeDetailsNodeDetailsPostErrors, GetNodeDetailsNodeDetailsPostResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -102,6 +102,20 @@ export const deepTraceAnalyzeDeepTraceAnalyzePost = <ThrowOnError extends boolea
  */
 export const deepTraceApplyDeepTraceApplyPost = <ThrowOnError extends boolean = false>(options: Options<DeepTraceApplyDeepTraceApplyPostData, ThrowOnError>) => (options.client ?? client).post<DeepTraceApplyDeepTraceApplyPostResponses, DeepTraceApplyDeepTraceApplyPostErrors, ThrowOnError>({
     url: '/deep-trace/apply',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get Node Details
+ *
+ * Gets comprehensive details for a node including source code, related nodes, and metadata.
+ */
+export const getNodeDetailsNodeDetailsPost = <ThrowOnError extends boolean = false>(options: Options<GetNodeDetailsNodeDetailsPostData, ThrowOnError>) => (options.client ?? client).post<GetNodeDetailsNodeDetailsPostResponses, GetNodeDetailsNodeDetailsPostErrors, ThrowOnError>({
+    url: '/node/details',
     ...options,
     headers: {
         'Content-Type': 'application/json',

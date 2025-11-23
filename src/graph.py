@@ -645,6 +645,231 @@ class GraphDB:
             
             return None
 
+    def get_node_details(self, node_id: str, project_root: str) -> Dict[str, Any]:
+        """
+        Gets comprehensive details for a node including source code, related nodes, and metadata.
+        Returns data suitable for a detailed trace view.
+        """
+        source_code = self.get_node_source(node_id, project_root)
+        
+        # Get related nodes for graph visualization
+        related_nodes_data = self.get_graph_for_visualization(
+            project_root, 
+            file_paths=None,  # We'll filter to related nodes after
+            max_nodes=100
+        )
+        
+        # Extract node info and find related nodes
+        node_info = None
+        related_nodes = []
+        related_edges = []
+        
+        with self.driver.session() as session:
+            if node_id.startswith("def:"):
+                # Get definition details
+                def_id = node_id[4:]  # Strip 'def:' prefix
+                query = """
+                MATCH (file:File)-[:DEFINES]->(def:Definition {id: $def_id})
+                RETURN def, file.path as file_path
+                """
+                result = session.run(query, def_id=def_id)
+                record = result.single()
+                
+                if record:
+                    def_node = record['def']
+                    file_path = record['file_path']
+                    
+                    node_info = {
+                        'id': node_id,
+                        'label': def_node['name'],
+                        'type': def_node['type'],
+                        'path': file_path,
+                        'properties': {
+                            'name': def_node['name'],
+                            'file_path': file_path,
+                            'start_line': def_node.get('start_line'),
+                            'end_line': def_node.get('end_line'),
+                        }
+                    }
+                    
+                    # Get related nodes through relationships
+                    # Callers
+                    callers_query = """
+                    MATCH (caller:Function)-[:CALLS]->(def:Function {id: $def_id})
+                    MATCH (caller_file:File)-[:DEFINES]->(caller)
+                    RETURN caller, caller_file.path as file_path
+                    """
+                    for record in session.run(callers_query, def_id=def_id):
+                        caller = record['caller']
+                        related_nodes.append({
+                            'id': f"def:{caller['id']}",
+                            'label': caller['name'],
+                            'type': 'function',
+                            'path': record['file_path'],
+                            'properties': {
+                                'name': caller['name'],
+                                'file_path': record['file_path'],
+                            }
+                        })
+                        related_edges.append({
+                            'id': f"def:{caller['id']}->{node_id}",
+                            'source': f"def:{caller['id']}",
+                            'target': node_id,
+                            'type': 'CALLS',
+                            'label': 'calls'
+                        })
+                    
+                    # Callees
+                    callees_query = """
+                    MATCH (def:Function {id: $def_id})-[:CALLS]->(callee:Function)
+                    MATCH (callee_file:File)-[:DEFINES]->(callee)
+                    RETURN callee, callee_file.path as file_path
+                    """
+                    for record in session.run(callees_query, def_id=def_id):
+                        callee = record['callee']
+                        related_nodes.append({
+                            'id': f"def:{callee['id']}",
+                            'label': callee['name'],
+                            'type': 'function',
+                            'path': record['file_path'],
+                            'properties': {
+                                'name': callee['name'],
+                                'file_path': record['file_path'],
+                            }
+                        })
+                        related_edges.append({
+                            'id': f"{node_id}->def:{callee['id']}",
+                            'source': node_id,
+                            'target': f"def:{callee['id']}",
+                            'type': 'CALLS',
+                            'label': 'calls'
+                        })
+                    
+                    # File that defines it
+                    related_nodes.append({
+                        'id': f"file:{file_path}",
+                        'label': file_path.split('/')[-1],
+                        'type': 'file',
+                        'path': file_path,
+                        'properties': {'path': file_path}
+                    })
+                    related_edges.append({
+                        'id': f"file:{file_path}->{node_id}",
+                        'source': f"file:{file_path}",
+                        'target': node_id,
+                        'type': 'DEFINES',
+                        'label': 'defines'
+                    })
+                    
+            elif node_id.startswith("file:"):
+                # Get file details
+                file_path = node_id[5:]  # Strip 'file:' prefix
+                query = """
+                MATCH (file:File {path: $file_path})
+                RETURN file
+                """
+                result = session.run(query, file_path=file_path)
+                record = result.single()
+                
+                if record:
+                    file_node = record['file']
+                    node_info = {
+                        'id': node_id,
+                        'label': file_path.split('/')[-1],
+                        'type': 'file',
+                        'path': file_path,
+                        'properties': {
+                            'path': file_path,
+                            'hash': file_node.get('hash', ''),
+                        }
+                    }
+                    
+                    # Get definitions in this file
+                    defs_query = """
+                    MATCH (file:File {path: $file_path})-[:DEFINES]->(def:Definition)
+                    RETURN def
+                    """
+                    for record in session.run(defs_query, file_path=file_path):
+                        def_node = record['def']
+                        related_nodes.append({
+                            'id': f"def:{def_node['id']}",
+                            'label': def_node['name'],
+                            'type': def_node['type'],
+                            'path': file_path,
+                            'properties': {
+                                'name': def_node['name'],
+                                'file_path': file_path,
+                                'start_line': def_node.get('start_line'),
+                                'end_line': def_node.get('end_line'),
+                            }
+                        })
+                        related_edges.append({
+                            'id': f"{node_id}->def:{def_node['id']}",
+                            'source': node_id,
+                            'target': f"def:{def_node['id']}",
+                            'type': 'DEFINES',
+                            'label': 'defines'
+                        })
+                    
+                    # Get imports
+                    imports_query = """
+                    MATCH (file:File {path: $file_path})-[:IMPORTS]->(imported:File)
+                    RETURN imported.path as path
+                    """
+                    for record in session.run(imports_query, file_path=file_path):
+                        imported_path = record['path']
+                        related_nodes.append({
+                            'id': f"file:{imported_path}",
+                            'label': imported_path.split('/')[-1],
+                            'type': 'file',
+                            'path': imported_path,
+                            'properties': {'path': imported_path}
+                        })
+                        related_edges.append({
+                            'id': f"{node_id}->file:{imported_path}",
+                            'source': node_id,
+                            'target': f"file:{imported_path}",
+                            'type': 'IMPORTS',
+                            'label': 'imports'
+                        })
+                    
+                    # Get files that import this file
+                    imported_by_query = """
+                    MATCH (importer:File)-[:IMPORTS]->(file:File {path: $file_path})
+                    RETURN importer.path as path
+                    """
+                    for record in session.run(imported_by_query, file_path=file_path):
+                        importer_path = record['path']
+                        related_nodes.append({
+                            'id': f"file:{importer_path}",
+                            'label': importer_path.split('/')[-1],
+                            'type': 'file',
+                            'path': importer_path,
+                            'properties': {'path': importer_path}
+                        })
+                        related_edges.append({
+                            'id': f"file:{importer_path}->{node_id}",
+                            'source': f"file:{importer_path}",
+                            'target': node_id,
+                            'type': 'IMPORTS',
+                            'label': 'imports'
+                        })
+        
+        # Deduplicate related nodes
+        seen_ids = {node_info['id']} if node_info else set()
+        unique_related_nodes = []
+        for node in related_nodes:
+            if node['id'] not in seen_ids:
+                unique_related_nodes.append(node)
+                seen_ids.add(node['id'])
+        
+        return {
+            'node': node_info,
+            'source_code': source_code,
+            'related_nodes': unique_related_nodes,
+            'related_edges': related_edges,
+        }
+
     def find_nodes_by_path_fuzzy(self, path_fragment: str, project_root: str) -> List[Dict[str, Any]]:
         """
         Finds API endpoints or functions that might match a path fragment.

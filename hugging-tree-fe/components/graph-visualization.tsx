@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Loader2, Network, X, Info, ChevronDown, ChevronUp } from 'lucide-react'
+import { Loader2, Network, X, Info, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -413,13 +413,30 @@ export function GraphVisualization({
       <Dialog open={isNodeDialogOpen} onOpenChange={setIsNodeDialogOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Info className="h-5 w-5" />
-              Node Details
-            </DialogTitle>
-            <DialogDescription>
-              Information about the selected node and its relationships
-            </DialogDescription>
+            <div className="flex items-start justify-between">
+              <div>
+                <DialogTitle className="flex items-center gap-2">
+                  <Info className="h-5 w-5" />
+                  Node Details
+                </DialogTitle>
+                <DialogDescription>
+                  Information about the selected node and its relationships
+                </DialogDescription>
+              </div>
+              {selectedNode && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => {
+                    const url = `/node/${encodeURIComponent(selectedNode.id)}?project=${encodeURIComponent(projectPath)}`
+                    window.open(url, '_blank')
+                  }}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open Full Trace
+                </Button>
+              )}
+            </div>
           </DialogHeader>
           {selectedNode && (
             <div className="mt-4 space-y-6">
