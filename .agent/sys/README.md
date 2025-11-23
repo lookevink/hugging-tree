@@ -13,6 +13,7 @@ Hugging Tree combines Vector Search with Graph Traversal to provide comprehensiv
 
 - **Language**: Python 3.11+
 - **CLI Framework**: Typer
+- **API Framework**: FastAPI
 - **Orchestration**: Docker Compose
 - **Graph Database**: Neo4j 5.x Community Edition
 - **Vector Database**: ChromaDB (Embedded mode)
@@ -34,6 +35,37 @@ Hugging Tree combines Vector Search with Graph Traversal to provide comprehensiv
 - **ChromaDB**: Embedded vector database stored locally
 
 ## System Components
+
+### Interface Layer (`main.py`)
+
+**Purpose**: Provides dual interfaces (CLI and REST API) for accessing Hugging Tree functionality.
+
+**Architecture**:
+- **Business Logic Functions**: Core functionality extracted into reusable functions (`logic_scan`, `logic_query`, `logic_analyze`, `logic_plan`)
+- **CLI Interface**: Typer-based command-line interface for interactive use
+- **API Interface**: FastAPI-based REST API for programmatic access and integration
+
+**Design Pattern**: Separation of concerns ensures:
+- Single source of truth for business logic
+- Consistent behavior between CLI and API
+- Easier testing and maintenance
+- No code duplication
+
+**CLI Commands**:
+- `scan`: Scan repository and sync to graph/vector databases
+- `query`: Semantic search with optional graph context
+- `analyze`: LLM-powered task analysis
+- `plan`: Generate executable plans in XML format
+
+**API Endpoints**:
+- `POST /scan`: Scan repository
+- `POST /query`: Semantic search
+- `POST /analyze`: Analyze task
+- `POST /plan`: Generate plan
+
+For detailed documentation, see:
+- [CLI Documentation](.agent/sys/cli/README.md)
+- [API Documentation](.agent/sys/api/README.md)
 
 ### 1. Scanner (`src/scanner.py`)
 

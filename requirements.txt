@@ -5,3 +5,5 @@ tree-sitter-languages
 typer
 google-generativeai
 python-dotenv
+fastapi
+uvicorn

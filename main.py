@@ -1,6 +1,11 @@
 import typer
 import os
+import subprocess
 from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
+
 from src.scanner import scan_repo
 from src.graph import GraphDB
 from src.parser import CodeParser
@@ -12,19 +17,46 @@ from src.planner import PlanGenerator
 # Load environment variables
 load_dotenv()
 
+# --- 1. SETUP APPS ---
 app = typer.Typer()
+api = FastAPI(title="Hugging Tree API", description="API for Hugging Tree Codebase Analysis")
 
-@app.command()
-def scan(path: str = typer.Option(..., help="Path to the repository to scan")):
-    """
-    Scan the repository for changes and sync to Neo4j.
-    """
+# --- 2. DATA MODELS ---
+class ScanRequest(BaseModel):
+    path: str
+
+class QueryRequest(BaseModel):
+    text: str
+    path: str
+    n: int = 5
+    with_graph: bool = True
+    xml: bool = False
+
+class AnalyzeRequest(BaseModel):
+    task: str
+    path: str
+    n: int = 10
+    model: Optional[str] = None
+    prompt_template: Optional[str] = None
+
+class PlanRequest(BaseModel):
+    task: str
+    path: str
+    n: int = 10
+    model: Optional[str] = None
+    prompt_template: Optional[str] = None
+
+# --- 3. SHARED LOGIC ---
+
+def logic_scan(path: str) -> Dict[str, Any]:
+    """Core logic for scanning a repository."""
     print(f"Scanning repository at: {path}")
     
     try:
         # 1. Scan the repo
         files = scan_repo(path)
-        print(f"Found {len(files)} files in git index.")
+        file_count = len(files)
+        print(f"Found {file_count} files in git index.")
         
         # 2. Sync to Neo4j
         graph = GraphDB()
@@ -39,7 +71,6 @@ def scan(path: str = typer.Option(..., help="Path to the repository to scan")):
             print("Parsing and syncing definitions & dependencies...")
             for file_info in files:
                 # Read file content
-                # Note: In a real incremental scan, we'd only do this for changed files
                 full_path = os.path.join(path, file_info.path)
                 try:
                     with open(full_path, 'r', encoding='utf-8') as f:
@@ -50,8 +81,6 @@ def scan(path: str = typer.Option(..., help="Path to the repository to scan")):
                     # Sync Definitions
                     if definitions:
                         graph.sync_definitions(file_info.path, definitions)
-                        # Store Embeddings
-                        # print(f"  [DEBUG] Generating embeddings for {len(definitions)} definitions in {file_info.path}")
                         embeddings.store_definitions(file_info.path, definitions)
                         
                     # Sync Dependencies
@@ -88,9 +117,6 @@ def scan(path: str = typer.Option(..., help="Path to the repository to scan")):
                                     target_file = resolved_imports[obj]
                                     callee_name = method
                             
-                            # We can't easily distinguish local vs imported calls without more symbol info
-                            # But if we assume local unless imported...
-                            
                             resolved_calls.append({
                                 'caller_name': call.context,
                                 'callee_name': callee_name,
@@ -99,9 +125,6 @@ def scan(path: str = typer.Option(..., help="Path to the repository to scan")):
                             })
                             
                         if resolved_calls:
-                            if 'orderHandlers.ts' in file_info.path:
-                                # print(f"  [DEBUG] OrderHandlers calls: {resolved_calls[:5]}") # Print first 5
-                                pass
                             graph.sync_calls(file_info.path, resolved_calls)
                             
                     print(f"  Processed {file_info.path}: {len(definitions)} defs, {len(imports)} imports, {len(calls)} calls")
@@ -109,14 +132,243 @@ def scan(path: str = typer.Option(..., help="Path to the repository to scan")):
                 except Exception as e:
                     print(f"  Failed to parse {file_info.path}: {e}")
 
-            count = graph.get_file_count()
-            print(f"Sync complete. Total files in graph: {count}")
+            final_count = graph.get_file_count()
+            print(f"Sync complete. Total files in graph: {final_count}")
+            return {"status": "success", "files_scanned": file_count, "total_files_in_graph": final_count}
+            
         finally:
             graph.close()
             
     except Exception as e:
         import traceback
         traceback.print_exc()
+        raise e
+
+def logic_query(text: str, path: str, n: int, with_graph: bool, xml: bool) -> Dict[str, Any]:
+    """Core logic for querying the codebase."""
+    embeddings = EmbeddingService(persistence_path=os.path.join(path, ".tree_roots"))
+    vector_results = embeddings.query(text, n_results=n)
+    
+    result = {
+        "vector_results": vector_results,
+        "expanded_context": None,
+        "xml_packet": None
+    }
+    
+    if with_graph or xml:
+        # Connect to graph DB and get expanded context
+        graph = GraphDB()
+        try:
+            if xml:
+                # Output XML context packet
+                result["xml_packet"] = graph.generate_context_packet(vector_results)
+            else:
+                result["expanded_context"] = graph.get_expanded_context(vector_results)
+        finally:
+            graph.close()
+            
+    return result
+
+def logic_analyze(task: str, path: str, n: int, model: Optional[str], prompt_template: Optional[str]) -> Dict[str, Any]:
+    """Core logic for analyzing a task."""
+    # Load prompt template if provided (CLI flag takes precedence over env var)
+    custom_template_path = prompt_template or os.getenv("ANALYZE_PROMPT_TEMPLATE")
+    
+    analyzer = ContextAnalyzer(
+        persistence_path=os.path.join(path, ".tree_roots"),
+        model_name=model,
+        prompt_template=custom_template_path
+    )
+    
+    try:
+        result = analyzer.analyze_task(task, n_results=n)
+        return {
+            "model_name": analyzer.model_name,
+            "analysis_result": result
+        }
+    finally:
+        analyzer.close()
+
+def logic_plan(task: str, path: str, n: int, model: Optional[str], prompt_template: Optional[str]) -> Dict[str, Any]:
+    """Core logic for generating a plan."""
+    # Load prompt template if provided (CLI flag takes precedence over env var)
+    custom_template_path = prompt_template or os.getenv("PLAN_PROMPT_TEMPLATE")
+    
+    planner = PlanGenerator(
+        persistence_path=os.path.join(path, ".tree_roots"),
+        model_name=model,
+        prompt_template=custom_template_path
+    )
+    
+    try:
+        plan_xml = planner.generate_plan(task, n_results=n)
+        return {
+            "model_name": planner.model_name,
+            "plan_xml": plan_xml
+        }
+    finally:
+        planner.close()
+
+def logic_list_projects() -> Dict[str, Any]:
+    """Core logic for listing available projects."""
+    projects_root = os.getenv("PROJECTS_ROOT")
+    
+    if not projects_root:
+        return {
+            "projects_root": None,
+            "projects": [],
+            "error": "PROJECTS_ROOT environment variable is not set"
+        }
+    
+    if not os.path.exists(projects_root):
+        return {
+            "projects_root": projects_root,
+            "projects": [],
+            "error": f"PROJECTS_ROOT path does not exist: {projects_root}"
+        }
+    
+    projects = []
+    
+    # Get all directories in PROJECTS_ROOT
+    try:
+        entries = os.listdir(projects_root)
+    except PermissionError:
+        return {
+            "projects_root": projects_root,
+            "projects": [],
+            "error": f"Permission denied accessing PROJECTS_ROOT: {projects_root}"
+        }
+    
+    # Check Neo4j for scanned projects and get file counts
+    graph = GraphDB()
+    project_file_counts = {}  # Map project_root -> file_count
+    scanned_projects = set()
+    try:
+        with graph.driver.session() as session:
+            # Get all projects with their file counts in one query
+            result = session.run(
+                "MATCH (f:File) WHERE f.project_root IS NOT NULL "
+                "RETURN f.project_root as project_root, count(f) as file_count"
+            )
+            for record in result:
+                project_root = record["project_root"]
+                file_count = record["file_count"]
+                if project_root:
+                    scanned_projects.add(project_root)
+                    project_file_counts[project_root] = file_count
+    finally:
+        graph.close()
+    
+    for entry in entries:
+        entry_path = os.path.join(projects_root, entry)
+        
+        # Skip if not a directory
+        if not os.path.isdir(entry_path):
+            continue
+        
+        # Check if it's a git repository
+        is_git_repo = False
+        if os.path.exists(os.path.join(entry_path, ".git")):
+            is_git_repo = True
+        else:
+            # Check if it's inside a git work tree
+            try:
+                subprocess.check_call(
+                    ["git", "rev-parse", "--is-inside-work-tree"],
+                    cwd=entry_path,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                is_git_repo = True
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                pass
+        
+        # Check if it's been scanned
+        is_scanned = False
+        file_count = 0
+        
+        # Check for .tree_roots directory (embeddings exist)
+        tree_roots_path = os.path.join(entry_path, ".tree_roots")
+        has_embeddings = os.path.exists(tree_roots_path) and os.path.isdir(tree_roots_path)
+        
+        # Check if project exists in Neo4j
+        if entry_path in scanned_projects:
+            is_scanned = True
+            file_count = project_file_counts.get(entry_path, 0)
+        elif has_embeddings:
+            is_scanned = True
+        
+        projects.append({
+            "name": entry,
+            "path": entry_path,
+            "is_git_repo": is_git_repo,
+            "is_scanned": is_scanned,
+            "file_count": file_count if is_scanned else 0
+        })
+    
+    # Sort by name
+    projects.sort(key=lambda x: x["name"])
+    
+    return {
+        "projects_root": projects_root,
+        "projects": projects,
+        "total": len(projects),
+        "scanned_count": sum(1 for p in projects if p["is_scanned"])
+    }
+
+
+# --- 4. FASTAPI INTERFACE (WEB) ---
+
+@api.post("/scan")
+def api_scan(request: ScanRequest):
+    try:
+        return logic_scan(request.path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api.post("/query")
+def api_query(request: QueryRequest):
+    try:
+        return logic_query(request.text, request.path, request.n, request.with_graph, request.xml)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api.post("/analyze")
+def api_analyze(request: AnalyzeRequest):
+    try:
+        return logic_analyze(request.task, request.path, request.n, request.model, request.prompt_template)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api.post("/plan")
+def api_plan(request: PlanRequest):
+    try:
+        return logic_plan(request.task, request.path, request.n, request.model, request.prompt_template)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api.get("/projects")
+def api_list_projects():
+    """
+    List all available projects in PROJECTS_ROOT.
+    Returns project information including scan status and file counts.
+    """
+    try:
+        return logic_list_projects()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- 5. TYPER INTERFACE (CLI) ---
+
+@app.command()
+def scan(path: str = typer.Option(..., help="Path to the repository to scan")):
+    """
+    Scan the repository for changes and sync to Neo4j.
+    """
+    try:
+        logic_scan(path)
+    except Exception as e:
         print(f"Error: {e}")
         raise typer.Exit(code=1)
 
@@ -127,6 +379,58 @@ def parse():
     """
     print("Parsing files...")
     # TODO: Implement parse logic
+
+@app.command()
+def projects():
+    """
+    List all available projects in PROJECTS_ROOT.
+    """
+    try:
+        result = logic_list_projects()
+        
+        if result.get("error"):
+            print(f"Error: {result['error']}")
+            raise typer.Exit(code=1)
+        
+        projects_root = result["projects_root"]
+        projects = result["projects"]
+        total = result["total"]
+        scanned_count = result["scanned_count"]
+        
+        print(f"\n📁 Projects in: {projects_root}\n")
+        print("=" * 80)
+        
+        if not projects:
+            print("No projects found.")
+            return
+        
+        for i, project in enumerate(projects, 1):
+            status_icon = "✅" if project["is_scanned"] else "⏳"
+            git_icon = "📦" if project["is_git_repo"] else "📂"
+            
+            print(f"\n[{i}] {project['name']}")
+            print(f"    {git_icon} Path: {project['path']}")
+            print(f"    {status_icon} Status: {'Scanned' if project['is_scanned'] else 'Not scanned'}")
+            
+            if project["is_git_repo"]:
+                print(f"    🔷 Git Repository: Yes")
+            else:
+                print(f"    🔷 Git Repository: No")
+            
+            if project["is_scanned"]:
+                print(f"    📊 Files in graph: {project['file_count']}")
+        
+        print("\n" + "=" * 80)
+        print(f"\n📊 Summary:")
+        print(f"   • Total projects: {total}")
+        print(f"   • Scanned: {scanned_count}")
+        print(f"   • Not scanned: {total - scanned_count}")
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"Error: {e}")
+        raise typer.Exit(code=1)
 
 @app.command()
 def query(
@@ -140,70 +444,66 @@ def query(
     Search the codebase using semantic search, optionally enhanced with graph traversal.
     """
     try:
-        embeddings = EmbeddingService(persistence_path=os.path.join(path, ".tree_roots"))
-        vector_results = embeddings.query(text, n_results=n)
+        results = logic_query(text, path, n, with_graph, xml)
+        
+        vector_results = results["vector_results"]
         
         print(f"\n🔍 Semantic Search Results for: '{text}'\n")
         print("=" * 80)
         
-        if with_graph or xml:
-            # Connect to graph DB and get expanded context
-            graph = GraphDB()
-            try:
-                if xml:
-                    # Output XML context packet
-                    xml_packet = graph.generate_context_packet(vector_results)
-                    print(xml_packet)
-                else:
-                    expanded = graph.get_expanded_context(vector_results)
-                    
-                    for i, item in enumerate(expanded['semantic_matches'], 1):
-                        result = item['vector_result']
-                        context = item['graph_context']
-                        meta = result['metadata']
-                        
-                        print(f"\n[{i}] {meta['name']} ({meta['type']})")
-                        print(f"    📄 File: {meta['file_path']}:{meta['start_line']}")
-                        print(f"    🎯 Semantic Score: {result['score']:.4f}")
-                        print(f"    📝 Code snippet:\n{result['document'][:200]}...")
-                        
-                        # Show graph context
-                        if context:
-                            print(f"\n    🔗 Graph Context:")
-                            
-                            if context.get('callers'):
-                                print(f"       ⬇️  Called by: {', '.join([c['name'] for c in context['callers'][:5]])}")
-                                if len(context['callers']) > 5:
-                                    print(f"          ... and {len(context['callers']) - 5} more")
-                            
-                            if context.get('callees'):
-                                print(f"       ⬆️  Calls: {', '.join([c['name'] for c in context['callees'][:5]])}")
-                                if len(context['callees']) > 5:
-                                    print(f"          ... and {len(context['callees']) - 5} more")
-                            
-                            if context.get('dependents'):
-                                print(f"       📦 Used by files: {len(context['dependents'])} file(s)")
-                                for dep in context['dependents'][:3]:
-                                    print(f"          - {dep}")
-                                if len(context['dependents']) > 3:
-                                    print(f"          ... and {len(context['dependents']) - 3} more")
-                            
-                            if context.get('dependencies'):
-                                print(f"       📥 Depends on: {len(context['dependencies'])} file(s)")
-                                for dep in context['dependencies'][:3]:
-                                    print(f"          - {dep}")
-                                if len(context['dependencies']) > 3:
-                                    print(f"          ... and {len(context['dependencies']) - 3} more")
-                        
-                        print()
-                    
-                    print("=" * 80)
-                    print(f"\n📊 Summary:")
-                    print(f"   • Found {len(expanded['semantic_matches'])} semantic matches")
-                    print(f"   • Related files in graph: {expanded['total_files']}")
+        if results["xml_packet"]:
+            
+             print(results["xml_packet"])
+             return
+
+        if results["expanded_context"]:
+            expanded = results["expanded_context"]
+            
+            for i, item in enumerate(expanded['semantic_matches'], 1):
+                result = item['vector_result']
+                context = item['graph_context']
+                meta = result['metadata']
                 
-            finally:
-                graph.close()
+                print(f"\n[{i}] {meta['name']} ({meta['type']})")
+                print(f"    📄 File: {meta['file_path']}:{meta['start_line']}")
+                print(f"    🎯 Semantic Score: {result['score']:.4f}")
+                print(f"    📝 Code snippet:\n{result['document'][:200]}...")
+                
+                # Show graph context
+                if context:
+                    print(f"\n    🔗 Graph Context:")
+                    
+                    if context.get('callers'):
+                        print(f"       ⬇️  Called by: {', '.join([c['name'] for c in context['callers'][:5]])}")
+                        if len(context['callers']) > 5:
+                            print(f"          ... and {len(context['callers']) - 5} more")
+                    
+                    if context.get('callees'):
+                        print(f"       ⬆️  Calls: {', '.join([c['name'] for c in context['callees'][:5]])}")
+                        if len(context['callees']) > 5:
+                            print(f"          ... and {len(context['callees']) - 5} more")
+                    
+                    if context.get('dependents'):
+                        print(f"       📦 Used by files: {len(context['dependents'])} file(s)")
+                        for dep in context['dependents'][:3]:
+                            print(f"          - {dep}")
+                        if len(context['dependents']) > 3:
+                            print(f"          ... and {len(context['dependents']) - 3} more")
+                    
+                    if context.get('dependencies'):
+                        print(f"       📥 Depends on: {len(context['dependencies'])} file(s)")
+                        for dep in context['dependencies'][:3]:
+                            print(f"          - {dep}")
+                        if len(context['dependencies']) > 3:
+                            print(f"          ... and {len(context['dependencies']) - 3} more")
+                
+                print()
+            
+            print("=" * 80)
+            print(f"\n📊 Summary:")
+            print(f"   • Found {len(expanded['semantic_matches'])} semantic matches")
+            print(f"   • Related files in graph: {expanded['total_files']}")
+            
         else:
             # Just show vector search results
             for i, r in enumerate(vector_results, 1):
@@ -229,36 +529,15 @@ def analyze(
 ):
     """
     Analyze a query/task and generate actionable context including files to modify, blast radius, and step-by-step actions.
-    
-    The task parameter can be any string - a question, task description, feature request, bug report, etc.
-    The system will find relevant code, analyze dependencies, and provide actionable insights.
-    
-    Prompt templates support Python-style string formatting with variables:
-    - {task}: The user's task description
-    - {xml_context}: The XML context packet with code and relationships
-    - {expanded_context}: The expanded context dictionary (JSON)
-    - {semantic_matches_count}: Number of semantic matches found
-    - {related_files_count}: Number of related files in graph
-    
-    Note: The embedding model (for semantic search) is fixed and cannot be changed after scanning.
-    Only the analysis model (for LLM generation) can be configured.
     """
     try:
-        # Load prompt template if provided (CLI flag takes precedence over env var)
-        custom_template_path = prompt_template or os.getenv("ANALYZE_PROMPT_TEMPLATE")
-        
-        analyzer = ContextAnalyzer(
-            persistence_path=os.path.join(path, ".tree_roots"),
-            model_name=model,
-            prompt_template=custom_template_path  # Pass path, let ContextAnalyzer load it
-        )
+        output = logic_analyze(task, path, n, model, prompt_template)
+        result = output["analysis_result"]
+        model_name = output["model_name"]
         
         print(f"\n🔍 Analyzing task: '{task}'\n")
-        print(f"🤖 Using model: {analyzer.model_name}\n")
+        print(f"🤖 Using model: {model_name}\n")
         print("=" * 80)
-        print("Gathering context from codebase...\n")
-        
-        result = analyzer.analyze_task(task, n_results=n)
         
         # Display structured analysis
         structured = result['structured']
@@ -315,8 +594,6 @@ def analyze(
         print(f"   • Files to modify: {len(structured.get('files_to_modify', []))}")
         print(f"   • Blast radius files: {len(structured.get('blast_radius', []))}")
         
-        analyzer.close()
-        
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -336,25 +613,15 @@ def plan(
     Generate an executable, step-by-step plan in XML format for AI coding tools.
     """
     try:
-        # Load prompt template if provided (CLI flag takes precedence over env var)
-        custom_template_path = prompt_template or os.getenv("PLAN_PROMPT_TEMPLATE")
-        
-        planner = PlanGenerator(
-            persistence_path=os.path.join(path, ".tree_roots"),
-            model_name=model,
-            prompt_template=custom_template_path
-        )
+        output = logic_plan(task, path, n, model, prompt_template)
+        model_name = output["model_name"]
+        plan_xml = output["plan_xml"]
         
         print(f"\n📋 Generating plan for: '{task}'\n")
-        print(f"🤖 Using model: {planner.model_name}\n")
+        print(f"🤖 Using model: {model_name}\n")
         print("=" * 80)
-        print("Gathering context and generating plan...\n")
-        
-        plan_xml = planner.generate_plan(task, n_results=n)
         
         print(plan_xml)
-        
-        planner.close()
         
     except Exception as e:
         import traceback

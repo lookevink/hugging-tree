@@ -1,15 +1,16 @@
 # Hugging Tree
 
-A local CLI that builds a Semantic Knowledge Graph of your codebase. It combines Vector Search with Graph Traversal to provide the "Perfect Context Packet" for LLMs.
+A local CLI that builds a Semantic Knowledge Graph of your codebase. It combines Vector Search with Graph Traversal to provide the "Context Tree" for LLMs.
 
 ## Quick Start
 
 1. **Setup**: Copy `.env.example` to `.env` and configure your `PROJECTS_ROOT` and `GOOGLE_API_KEY`
 2. **Start**: Run `docker-compose up -d --build`
-3. **Scan**: `docker compose exec app python main.py scan --path /projects/your-repo`
-4. **Query**: `docker compose exec app python main.py query --text "your query" --path /projects/your-repo`
-5. **Analyze**: `docker compose exec app python main.py analyze --task "your task" --path /projects/your-repo`
-6. **Plan**: `docker compose exec app python main.py plan --task "your task" --path /projects/your-repo`
+3. **List Projects**: `docker compose exec app python main.py projects` (optional - see available projects)
+4. **Scan**: `docker compose exec app python main.py scan --path /projects/your-repo`
+5. **Query**: `docker compose exec app python main.py query --text "your query" --path /projects/your-repo`
+6. **Analyze**: `docker compose exec app python main.py analyze --task "your task" --path /projects/your-repo`
+7. **Plan**: `docker compose exec app python main.py plan --task "your task" --path /projects/your-repo`
 
 ### Custom Prompt Templates
 
@@ -35,6 +36,170 @@ docker compose exec app python main.py analyze --task "..." --path ...
 ```
 
 See [Analyze Feature Documentation](.agent/prd/features/analyze.md#prompt-customization) and [Plan Feature Documentation](.agent/prd/features/plan.md#prompt-customization) for details.
+
+## API Usage
+
+The tool exposes a REST API via FastAPI, enabling programmatic access and integration with visualization tools and UI management systems.
+
+### Starting the API Server
+
+**Local Development**:
+```bash
+uvicorn main:api --reload --port 8000
+```
+
+**Docker**:
+```bash
+docker compose exec app uvicorn main:api --host 0.0.0.0 --port 8000
+```
+
+### Interactive Documentation
+
+Once the server is running, access the interactive Swagger UI at:
+- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+
+### API Endpoints
+
+#### `GET /projects`
+List all available projects in PROJECTS_ROOT.
+
+**Request**: No request body required.
+
+**Response**:
+```json
+{
+  "projects_root": "/projects",
+  "projects": [
+    {
+      "name": "my-repo",
+      "path": "/projects/my-repo",
+      "is_git_repo": true,
+      "is_scanned": true,
+      "file_count": 42
+    }
+  ],
+  "total": 1,
+  "scanned_count": 1
+}
+```
+
+#### `POST /scan`
+Scan a repository and sync to Neo4j graph database and ChromaDB vector database.
+
+**Request Body**:
+```json
+{
+  "path": "/path/to/repository"
+}
+```
+
+**Response**:
+```json
+{
+  "status": "success",
+  "files_scanned": 42,
+  "total_files_in_graph": 42
+}
+```
+
+#### `POST /query`
+Semantic search with optional graph context expansion.
+
+**Request Body**:
+```json
+{
+  "text": "find authentication logic",
+  "path": "/path/to/repository",
+  "n": 5,
+  "with_graph": true,
+  "xml": false
+}
+```
+
+**Response**:
+```json
+{
+  "vector_results": [...],
+  "expanded_context": {...},
+  "xml_packet": null
+}
+```
+
+#### `POST /analyze`
+Analyze a task and generate actionable insights.
+
+**Request Body**:
+```json
+{
+  "task": "add user authentication",
+  "path": "/path/to/repository",
+  "n": 10,
+  "model": "gemini-3-pro-preview",
+  "prompt_template": "/path/to/template.txt"
+}
+```
+
+**Response**:
+```json
+{
+  "model_name": "gemini-3-pro-preview",
+  "analysis_result": {
+    "structured": {...},
+    "analysis": "...",
+    "semantic_matches": 10,
+    "related_files": [...]
+  }
+}
+```
+
+#### `POST /plan`
+Generate an executable, step-by-step plan in XML format.
+
+**Request Body**:
+```json
+{
+  "task": "implement user authentication",
+  "path": "/path/to/repository",
+  "n": 10,
+  "model": "gemini-3-pro-preview",
+  "prompt_template": "/path/to/template.txt"
+}
+```
+
+**Response**:
+```json
+{
+  "model_name": "gemini-3-pro-preview",
+  "plan_xml": "<plan>...</plan>"
+}
+```
+
+### Example Usage
+
+**Using curl**:
+```bash
+# Query the codebase
+curl -X POST "http://localhost:8000/query" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "text": "find authentication logic",
+       "path": "/projects/your-repo",
+       "n": 5,
+       "with_graph": true
+     }'
+
+# Analyze a task
+curl -X POST "http://localhost:8000/analyze" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "task": "add user authentication",
+       "path": "/projects/your-repo",
+       "n": 10
+     }'
+```
+
+For detailed API documentation, see [API Documentation](.agent/sys/api/README.md).
 
 ## Documentation
 
