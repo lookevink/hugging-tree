@@ -11,14 +11,34 @@ if [ ! -f "main.py" ]; then
     exit 1
 fi
 
+# Check if Python dependencies are installed
+echo "🔍 Checking Python dependencies..."
+if ! python3 -c "import fastapi" 2>/dev/null; then
+    echo "⚠️  Python dependencies not found. Installing..."
+    pip install -r requirements.txt || {
+        echo "❌ Failed to install Python dependencies"
+        echo "   Please install manually: pip install -r requirements.txt"
+        exit 1
+    }
+fi
+
 # Generate OpenAPI spec
 echo "📝 Generating OpenAPI specification..."
-python scripts/generate-openapi.py
+python scripts/generate-openapi.py || {
+    echo "⚠️  OpenAPI generation failed. This is okay if the server isn't running."
+    echo "   You can generate it later by running: npm run generate:openapi"
+    echo "   Or start the server first: uvicorn main:api --port 8088"
+}
 
-# Install root dependencies (OpenAPI generator)
-if [ ! -d "node_modules" ]; then
-    echo "📦 Installing root dependencies..."
-    npm install
+# Check if npx is available (for SDK generation)
+if command -v npx &> /dev/null; then
+    echo "✅ npx found - will use Hey API for SDK generation"
+elif command -v docker &> /dev/null; then
+    echo "✅ Docker found - will use as fallback for SDK generation"
+else
+    echo "⚠️  Neither npx nor Docker found. SDK generation may fail."
+    echo "   Install Node.js (includes npx): https://nodejs.org/"
+    echo "   Or install Docker: https://docs.docker.com/get-docker/"
 fi
 
 # Install frontend dependencies
@@ -39,7 +59,7 @@ fi
 # Generate SDK from OpenAPI spec
 if [ -f "openapi.json" ]; then
     echo "🔧 Generating TypeScript SDK from OpenAPI spec..."
-    npm run generate:sdk || echo "Warning: SDK generation failed, continuing with manual API client"
+    python scripts/generate-sdk.py || echo "Warning: SDK generation failed, continuing with manual API client"
 else
     echo "Warning: openapi.json not found, skipping SDK generation"
 fi

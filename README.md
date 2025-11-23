@@ -211,7 +211,8 @@ Hugging Tree includes a modern Next.js web interface for visual interaction with
 # Start all services including frontend
 docker compose up -d --build
 
-# Access the web UI at http://localhost:3000
+# Access the web UI at http://localhost:3033
+# API available at http://localhost:8088
 ```
 
 **Local Development**:
@@ -220,10 +221,10 @@ docker compose up -d --build
 ./scripts/setup-frontend.sh
 
 # Start the frontend development server
-cd frontend
-npm run dev
+cd hugging-tree-fe
+pnpm run dev
 
-# Access at http://localhost:3000
+# Access at http://localhost:3033
 ```
 
 ### Features
@@ -237,20 +238,25 @@ The web UI provides visual interfaces for:
 
 ### OpenAPI SDK Generation
 
-The frontend uses an auto-generated TypeScript SDK from the FastAPI OpenAPI specification:
+The frontend uses an auto-generated TypeScript SDK from the FastAPI OpenAPI specification. We use [Hey API](https://heyapi.xyz/) - FastAPI's recommended TypeScript SDK generator:
 
 ```bash
-# Generate OpenAPI spec from FastAPI
-npm run generate:openapi
+# Generate OpenAPI spec from FastAPI (from project root)
+python scripts/generate-openapi.py
 
-# Generate TypeScript SDK from OpenAPI spec
-npm run generate:sdk
+# Generate TypeScript SDK from OpenAPI spec (uses npx or Docker)
+python scripts/generate-sdk.py
 
 # Or do both at once
-npm run generate:all
+python scripts/generate-openapi.py && python scripts/generate-sdk.py
 ```
 
-The generated SDK will be available at `frontend/src/lib/api/` and can be imported in your components.
+**Note**: 
+- OpenAPI generation uses Python (no npm needed!)
+- SDK generation uses `@hey-api/openapi-ts` via npx (no installation needed) or Docker as fallback
+- The frontend uses `pnpm` for its own dependencies
+
+The generated SDK will be available at `hugging-tree-fe/src/lib/api/` and can be imported in your components.
 
 ## Documentation
 

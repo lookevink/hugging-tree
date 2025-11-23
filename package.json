@@ -4,14 +4,11 @@
   "private": true,
   "scripts": {
     "generate:openapi": "python scripts/generate-openapi.py",
-    "generate:sdk": "openapi-generator-cli generate -i openapi.json -g typescript-axios -o hugging-tree-fe/src/lib/api --additional-properties=supportsES6=true,withInterfaces=true,typescriptThreePlus=true",
-    "generate:all": "npm run generate:openapi && npm run generate:sdk",
+    "generate:sdk": "python scripts/generate-sdk.py",
+    "generate:all": "python scripts/generate-openapi.py && python scripts/generate-sdk.py",
     "dev": "cd hugging-tree-fe && pnpm run dev",
     "build": "cd hugging-tree-fe && pnpm run build",
     "lint": "cd hugging-tree-fe && pnpm run lint"
-  },
-  "devDependencies": {
-    "@openapitools/openapi-generator-cli": "^2.7.0"
   }
 }
 
