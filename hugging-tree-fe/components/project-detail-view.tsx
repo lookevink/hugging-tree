@@ -17,12 +17,6 @@ interface ProjectDetailViewProps {
 
 export function ProjectDetailView({ projectPath, onBack }: ProjectDetailViewProps) {
   const [activeTab, setActiveTab] = useState('scan')
-  const [graphFilterFiles, setGraphFilterFiles] = useState<string[] | undefined>(undefined)
-
-  const handleShowGraph = (files: string[]) => {
-    setGraphFilterFiles(files)
-    setActiveTab('graph')
-  }
 
   return (
     <div className="space-y-4">
@@ -55,15 +49,15 @@ export function ProjectDetailView({ projectPath, onBack }: ProjectDetailViewProp
         </TabsContent>
 
         <TabsContent value="analyze" className="mt-6">
-          <AnalyzeTab projectPath={projectPath} onShowGraph={handleShowGraph} />
+          <AnalyzeTab projectPath={projectPath} />
         </TabsContent>
 
         <TabsContent value="plan" className="mt-6">
-          <PlanTab projectPath={projectPath} onShowGraph={handleShowGraph} />
+          <PlanTab projectPath={projectPath} />
         </TabsContent>
 
         <TabsContent value="graph" className="mt-6">
-          <GraphTab projectPath={projectPath} filterFiles={graphFilterFiles} />
+          <GraphTab projectPath={projectPath} />
         </TabsContent>
       </Tabs>
     </div>

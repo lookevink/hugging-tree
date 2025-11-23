@@ -10,10 +10,10 @@ import '@/src/lib/api-client' // Ensure API client is configured
 import { apiPlanPlanPost } from '@/src/lib/api'
 import { toast } from 'sonner'
 import { Loader2, FileText, Network, Copy } from 'lucide-react'
+import { GraphVisualization } from '@/components/graph-visualization'
 
 interface PlanTabProps {
   projectPath: string
-  onShowGraph?: (files: string[]) => void
 }
 
 interface PlanResult {
@@ -24,12 +24,13 @@ interface PlanResult {
   semantic_matches_count: number
 }
 
-export function PlanTab({ projectPath, onShowGraph }: PlanTabProps) {
+export function PlanTab({ projectPath }: PlanTabProps) {
   const [task, setTask] = useState('')
   const [n, setN] = useState(10)
   const [model, setModel] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<PlanResult | null>(null)
+  const [showGraph, setShowGraph] = useState(false)
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
@@ -134,18 +135,16 @@ export function PlanTab({ projectPath, onShowGraph }: PlanTabProps) {
                         {result.related_files.length} related file{result.related_files.length !== 1 ? 's' : ''} identified
                       </CardDescription>
                     </div>
-                    {onShowGraph && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          onShowGraph(result.related_files)
-                        }}
-                      >
-                        <Network className="h-4 w-4 mr-2" />
-                        View Graph
-                      </Button>
-                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setShowGraph(!showGraph)
+                      }}
+                    >
+                      <Network className="h-4 w-4 mr-2" />
+                      {showGraph ? 'Hide Graph' : 'View Graph'}
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -190,6 +189,22 @@ export function PlanTab({ projectPath, onShowGraph }: PlanTabProps) {
                 </pre>
               </CardContent>
             </Card>
+          </div>
+        )}
+
+        {/* Inline Graph Visualization */}
+        {showGraph && result.related_files && result.related_files.length > 0 && (
+          <div className="mt-4">
+            <GraphVisualization
+              projectPath={projectPath}
+              filterFiles={result.related_files}
+              title="Plan Graph View"
+              description={`Showing relationships for ${result.related_files.length} file${result.related_files.length !== 1 ? 's' : ''}`}
+              collapsible={true}
+              defaultCollapsed={false}
+              height="500px"
+              maxNodes={200}
+            />
           </div>
         )}
       </CardContent>

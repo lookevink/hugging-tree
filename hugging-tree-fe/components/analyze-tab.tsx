@@ -12,10 +12,10 @@ import { toast } from 'sonner'
 import { Loader2, Brain, Copy, Network } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { GraphVisualization } from '@/components/graph-visualization'
 
 interface AnalyzeTabProps {
   projectPath: string
-  onShowGraph?: (files: string[]) => void
 }
 
 interface GraphContextItem {
@@ -59,12 +59,14 @@ interface AnalysisResult {
   };
 }
 
-export function AnalyzeTab({ projectPath, onShowGraph }: AnalyzeTabProps) {
+export function AnalyzeTab({ projectPath }: AnalyzeTabProps) {
   const [task, setTask] = useState('')
   const [n, setN] = useState(10)
   const [model, setModel] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<AnalysisResult | null>(null)
+  const [graphFiles, setGraphFiles] = useState<string[] | undefined>(undefined)
+  const [showGraph, setShowGraph] = useState(false)
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
@@ -171,7 +173,7 @@ export function AnalyzeTab({ projectPath, onShowGraph }: AnalyzeTabProps) {
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-semibold">Files to Modify</h4>
-                        {onShowGraph && result.analysis_result.structured.files_to_modify.length > 0 && (
+                        {result.analysis_result.structured.files_to_modify.length > 0 && (
                           <Button
                             variant="outline"
                             size="sm"
@@ -181,11 +183,12 @@ export function AnalyzeTab({ projectPath, onShowGraph }: AnalyzeTabProps) {
                                 ...result.analysis_result.structured.blast_radius || [],
                                 ...result.analysis_result.related_files || []
                               ].filter((f, i, arr) => arr.indexOf(f) === i) // deduplicate
-                              onShowGraph(files)
+                              setGraphFiles(files)
+                              setShowGraph(true)
                             }}
                           >
                             <Network className="h-4 w-4 mr-2" />
-                            View Graph
+                            {showGraph ? 'Hide Graph' : 'View Graph'}
                           </Button>
                         )}
                       </div>
@@ -204,23 +207,22 @@ export function AnalyzeTab({ projectPath, onShowGraph }: AnalyzeTabProps) {
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-semibold">Blast Radius</h4>
-                        {onShowGraph && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const files = [
-                                ...result.analysis_result.structured.files_to_modify || [],
-                                ...result.analysis_result.structured.blast_radius || [],
-                                ...result.analysis_result.related_files || []
-                              ].filter((f, i, arr) => arr.indexOf(f) === i) // deduplicate
-                              onShowGraph(files)
-                            }}
-                          >
-                            <Network className="h-4 w-4 mr-2" />
-                            View Graph
-                          </Button>
-                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const files = [
+                              ...result.analysis_result.structured.files_to_modify || [],
+                              ...result.analysis_result.structured.blast_radius || [],
+                              ...result.analysis_result.related_files || []
+                            ].filter((f, i, arr) => arr.indexOf(f) === i) // deduplicate
+                            setGraphFiles(files)
+                            setShowGraph(true)
+                          }}
+                        >
+                          <Network className="h-4 w-4 mr-2" />
+                          {showGraph ? 'Hide Graph' : 'View Graph'}
+                        </Button>
                       </div>
                       <ul className="list-disc list-inside space-y-1">
                         {result.analysis_result.structured.blast_radius.map((file: string, idx: number) => (
@@ -331,6 +333,22 @@ export function AnalyzeTab({ projectPath, onShowGraph }: AnalyzeTabProps) {
               )}
             </CardContent>
           </Card>
+        )}
+
+        {/* Inline Graph Visualization */}
+        {showGraph && graphFiles && (
+          <div className="mt-4">
+            <GraphVisualization
+              projectPath={projectPath}
+              filterFiles={graphFiles}
+              title="Analysis Graph View"
+              description={`Showing relationships for ${graphFiles.length} file${graphFiles.length !== 1 ? 's' : ''}`}
+              collapsible={true}
+              defaultCollapsed={false}
+              height="500px"
+              maxNodes={200}
+            />
+          </div>
         )}
       </CardContent>
     </Card>
