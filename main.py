@@ -58,6 +58,11 @@ class PlanRequest(BaseModel):
     prompt_template: Optional[str] = None
     format: Optional[str] = "json" # "json" or "xml"
 
+class GraphRequest(BaseModel):
+    path: str
+    file_paths: Optional[List[str]] = None  # Filter to specific files
+    max_nodes: Optional[int] = 500  # Limit number of nodes
+
 # --- 3. SHARED LOGIC ---
 
 def logic_scan(path: str) -> Dict[str, Any]:
@@ -221,6 +226,14 @@ def logic_plan(task: str, path: str, n: int, model: Optional[str], prompt_templa
     finally:
         planner.close()
 
+def logic_get_graph(path: str, file_paths: Optional[List[str]] = None, max_nodes: int = 500) -> Dict[str, Any]:
+    """Core logic for getting graph data for visualization."""
+    graph = GraphDB()
+    try:
+        return graph.get_graph_for_visualization(path, file_paths=file_paths, max_nodes=max_nodes)
+    finally:
+        graph.close()
+
 def logic_list_projects() -> Dict[str, Any]:
     """Core logic for listing available projects."""
     projects_root = os.getenv("PROJECTS_ROOT")
@@ -361,6 +374,17 @@ def api_plan(request: PlanRequest):
             return Response(content=result["plan_xml"], media_type="application/xml")
             
         return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api.post("/graph")
+def api_get_graph(request: GraphRequest):
+    """
+    Get graph data for visualization.
+    Returns nodes and edges in a format suitable for graph visualization libraries.
+    """
+    try:
+        return logic_get_graph(request.path, file_paths=request.file_paths, max_nodes=request.max_nodes)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

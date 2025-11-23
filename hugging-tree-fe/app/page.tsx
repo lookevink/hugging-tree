@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Toaster } from '@/components/ui/sonner'
 import { ProjectsView } from '@/components/projects-view'
 import { ProjectDetailView } from '@/components/project-detail-view'

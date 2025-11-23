@@ -378,3 +378,234 @@ class GraphDB:
         xml_parts.append('</codebase_context>')
         
         return '\n'.join(xml_parts)
+
+    def get_graph_for_visualization(self, project_root: str, file_paths: Optional[List[str]] = None, max_nodes: int = 500) -> Dict[str, Any]:
+        """
+        Gets graph data in a format suitable for visualization.
+        Returns nodes and edges in a format compatible with graph visualization libraries.
+        
+        Args:
+            project_root: Root path of the project
+            file_paths: Optional list of file paths to filter to (for blast radius visualization)
+            max_nodes: Maximum number of nodes to return
+            
+        Returns:
+            Dictionary with 'nodes' and 'edges' lists
+        """
+        with self.driver.session() as session:
+            # Build the query based on whether we're filtering to specific files
+            if file_paths:
+                # Get nodes and relationships for specific files and their neighbors
+                # First, find related files through imports
+                related_files_query = """
+                MATCH (target:File)
+                WHERE target.path IN $file_paths AND target.project_root = $project_root
+                OPTIONAL MATCH (target)-[:IMPORTS]->(imported:File)
+                OPTIONAL MATCH (importer:File)-[:IMPORTS]->(target)
+                WITH collect(DISTINCT target.path) + collect(DISTINCT imported.path) + collect(DISTINCT importer.path) as all_files
+                UNWIND all_files as file_path
+                RETURN DISTINCT file_path
+                """
+                related_result = session.run(related_files_query, project_root=project_root, file_paths=file_paths)
+                related_file_paths = [record['file_path'] for record in related_result if record['file_path']]
+                all_file_paths = list(set(file_paths + related_file_paths))[:max_nodes]
+                
+                query = """
+                MATCH (f:File)
+                WHERE f.project_root = $project_root AND f.path IN $all_file_paths
+                OPTIONAL MATCH (f)-[:DEFINES]->(d:Definition)
+                WITH f, collect(DISTINCT d) as definitions
+                OPTIONAL MATCH (f)-[:IMPORTS]->(imported:File)
+                WITH f, definitions, collect(DISTINCT imported) as imports
+                OPTIONAL MATCH (imported_file:File)-[:IMPORTS]->(f)
+                WITH f, definitions, imports, collect(DISTINCT imported_file) as imported_by
+                OPTIONAL MATCH (f)-[:DEFINES]->(caller:Function)-[:CALLS]->(callee:Function)<-[:DEFINES]-(callee_file:File)
+                WITH f, definitions, imports, imported_by, collect(DISTINCT {caller: caller, callee: callee, callee_file: callee_file}) as calls
+                RETURN f, definitions, imports, imported_by, calls
+                """
+                result = session.run(query, project_root=project_root, all_file_paths=all_file_paths)
+            else:
+                # Get all files and relationships for the project
+                query = """
+                MATCH (f:File)
+                WHERE f.project_root = $project_root
+                WITH f
+                LIMIT $max_nodes
+                OPTIONAL MATCH (f)-[:DEFINES]->(d:Definition)
+                WITH f, collect(DISTINCT d) as definitions
+                OPTIONAL MATCH (f)-[:IMPORTS]->(imported:File)
+                WITH f, definitions, collect(DISTINCT imported) as imports
+                OPTIONAL MATCH (imported_file:File)-[:IMPORTS]->(f)
+                WITH f, definitions, imports, collect(DISTINCT imported_file) as imported_by
+                OPTIONAL MATCH (f)-[:DEFINES]->(caller:Function)-[:CALLS]->(callee:Function)<-[:DEFINES]-(callee_file:File)
+                WITH f, definitions, imports, imported_by, collect(DISTINCT {caller: caller, callee: callee, callee_file: callee_file}) as calls
+                RETURN f, definitions, imports, imported_by, calls
+                """
+                result = session.run(query, project_root=project_root, max_nodes=max_nodes)
+            
+            nodes = []
+            edges = []
+            node_ids = set()
+            
+            for record in result:
+                file_node = record['f']
+                if not file_node:
+                    continue
+                    
+                file_path = file_node['path']
+                file_id = f"file:{file_path}"
+                
+                # Add file node
+                if file_id not in node_ids:
+                    nodes.append({
+                        'id': file_id,
+                        'label': file_path.split('/')[-1],
+                        'type': 'file',
+                        'path': file_path,
+                        'properties': {
+                            'path': file_path,
+                            'hash': file_node.get('hash', ''),
+                        }
+                    })
+                    node_ids.add(file_id)
+                
+                # Add definition nodes and edges
+                definitions = record['definitions'] or []
+                for def_node in definitions:
+                    def_id = f"def:{def_node['id']}"
+                    if def_id not in node_ids:
+                        nodes.append({
+                            'id': def_id,
+                            'label': def_node['name'],
+                            'type': def_node['type'],
+                            'properties': {
+                                'name': def_node['name'],
+                                'file_path': file_path,
+                                'start_line': def_node.get('start_line'),
+                                'end_line': def_node.get('end_line'),
+                            }
+                        })
+                        node_ids.add(def_id)
+                    
+                    # Add DEFINES edge
+                    edges.append({
+                        'id': f"{file_id}->{def_id}",
+                        'source': file_id,
+                        'target': def_id,
+                        'type': 'DEFINES',
+                        'label': 'defines'
+                    })
+                
+                # Add IMPORT edges
+                imports = record['imports'] or []
+                for imported_file in imports:
+                    imported_path = imported_file['path']
+                    imported_id = f"file:{imported_path}"
+                    
+                    # Add imported file node if not already added
+                    if imported_id not in node_ids:
+                        nodes.append({
+                            'id': imported_id,
+                            'label': imported_path.split('/')[-1],
+                            'type': 'file',
+                            'path': imported_path,
+                            'properties': {
+                                'path': imported_path,
+                            }
+                        })
+                        node_ids.add(imported_id)
+                    
+                    edges.append({
+                        'id': f"{file_id}->{imported_id}",
+                        'source': file_id,
+                        'target': imported_id,
+                        'type': 'IMPORTS',
+                        'label': 'imports'
+                    })
+                
+                # Add imported_by edges (reverse direction)
+                imported_by = record['imported_by'] or []
+                for importer_file in imported_by:
+                    importer_path = importer_file['path']
+                    importer_id = f"file:{importer_path}"
+                    
+                    if importer_id not in node_ids:
+                        nodes.append({
+                            'id': importer_id,
+                            'label': importer_path.split('/')[-1],
+                            'type': 'file',
+                            'path': importer_path,
+                            'properties': {
+                                'path': importer_path,
+                            }
+                        })
+                        node_ids.add(importer_id)
+                    
+                    edges.append({
+                        'id': f"{importer_id}->{file_id}",
+                        'source': importer_id,
+                        'target': file_id,
+                        'type': 'IMPORTS',
+                        'label': 'imports'
+                    })
+                
+                # Add CALLS edges
+                calls = record['calls'] or []
+                for call_data in calls:
+                    caller = call_data.get('caller')
+                    callee = call_data.get('callee')
+                    callee_file = call_data.get('callee_file')
+                    
+                    if caller and callee and callee_file:
+                        caller_id = f"def:{caller['id']}"
+                        callee_id = f"def:{callee['id']}"
+                        
+                        # Ensure callee is in nodes
+                        if callee_id not in node_ids:
+                            callee_file_path = callee_file['path']
+                            nodes.append({
+                                'id': callee_id,
+                                'label': callee['name'],
+                                'type': 'function',
+                                'properties': {
+                                    'name': callee['name'],
+                                    'file_path': callee_file_path,
+                                }
+                            })
+                            node_ids.add(callee_id)
+                            
+                            # Add callee file if needed
+                            callee_file_id = f"file:{callee_file_path}"
+                            if callee_file_id not in node_ids:
+                                nodes.append({
+                                    'id': callee_file_id,
+                                    'label': callee_file_path.split('/')[-1],
+                                    'type': 'file',
+                                    'path': callee_file_path,
+                                    'properties': {
+                                        'path': callee_file_path,
+                                    }
+                                })
+                                node_ids.add(callee_file_id)
+                            
+                            # Add DEFINES edge for callee
+                            edges.append({
+                                'id': f"{callee_file_id}->{callee_id}",
+                                'source': callee_file_id,
+                                'target': callee_id,
+                                'type': 'DEFINES',
+                                'label': 'defines'
+                            })
+                        
+                        edges.append({
+                            'id': f"{caller_id}->{callee_id}",
+                            'source': caller_id,
+                            'target': callee_id,
+                            'type': 'CALLS',
+                            'label': 'calls'
+                        })
+            
+            return {
+                'nodes': nodes,
+                'edges': edges
+            }

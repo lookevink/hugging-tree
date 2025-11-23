@@ -9,12 +9,13 @@ import { Label } from '@/components/ui/label'
 import '@/src/lib/api-client' // Ensure API client is configured
 import { apiAnalyzeAnalyzePost } from '@/src/lib/api'
 import { toast } from 'sonner'
-import { Loader2, Brain, Copy } from 'lucide-react'
+import { Loader2, Brain, Copy, Network } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 interface AnalyzeTabProps {
   projectPath: string
+  onShowGraph?: (files: string[]) => void
 }
 
 interface GraphContextItem {
@@ -58,7 +59,7 @@ interface AnalysisResult {
   };
 }
 
-export function AnalyzeTab({ projectPath }: AnalyzeTabProps) {
+export function AnalyzeTab({ projectPath, onShowGraph }: AnalyzeTabProps) {
   const [task, setTask] = useState('')
   const [n, setN] = useState(10)
   const [model, setModel] = useState('')
@@ -168,7 +169,26 @@ export function AnalyzeTab({ projectPath }: AnalyzeTabProps) {
                 <>
                   {result.analysis_result.structured.files_to_modify && (
                     <div>
-                      <h4 className="font-semibold mb-2">Files to Modify</h4>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold">Files to Modify</h4>
+                        {onShowGraph && result.analysis_result.structured.files_to_modify.length > 0 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const files = [
+                                ...result.analysis_result.structured.files_to_modify || [],
+                                ...result.analysis_result.structured.blast_radius || [],
+                                ...result.analysis_result.related_files || []
+                              ].filter((f, i, arr) => arr.indexOf(f) === i) // deduplicate
+                              onShowGraph(files)
+                            }}
+                          >
+                            <Network className="h-4 w-4 mr-2" />
+                            View Graph
+                          </Button>
+                        )}
+                      </div>
                       <ul className="list-disc list-inside space-y-1">
                         {result.analysis_result.structured.files_to_modify.map((file: string, idx: number) => (
                           <li key={idx} className="text-sm">
@@ -176,6 +196,35 @@ export function AnalyzeTab({ projectPath }: AnalyzeTabProps) {
                               {file}
                             </ReactMarkdown>
                           </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {result.analysis_result.structured.blast_radius && result.analysis_result.structured.blast_radius.length > 0 && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold">Blast Radius</h4>
+                        {onShowGraph && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const files = [
+                                ...result.analysis_result.structured.files_to_modify || [],
+                                ...result.analysis_result.structured.blast_radius || [],
+                                ...result.analysis_result.related_files || []
+                              ].filter((f, i, arr) => arr.indexOf(f) === i) // deduplicate
+                              onShowGraph(files)
+                            }}
+                          >
+                            <Network className="h-4 w-4 mr-2" />
+                            View Graph
+                          </Button>
+                        )}
+                      </div>
+                      <ul className="list-disc list-inside space-y-1">
+                        {result.analysis_result.structured.blast_radius.map((file: string, idx: number) => (
+                          <li key={idx} className="text-sm">{file}</li>
                         ))}
                       </ul>
                     </div>

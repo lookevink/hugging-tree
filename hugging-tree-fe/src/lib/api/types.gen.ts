@@ -31,6 +31,24 @@ export type AnalyzeRequest = {
 };
 
 /**
+ * GraphRequest
+ */
+export type GraphRequest = {
+    /**
+     * Path
+     */
+    path: string;
+    /**
+     * File Paths
+     */
+    file_paths?: Array<string> | null;
+    /**
+     * Max Nodes
+     */
+    max_nodes?: number | null;
+};
+
+/**
  * HTTPValidationError
  */
 export type HttpValidationError = {
@@ -210,6 +228,29 @@ export type ApiPlanPlanPostErrors = {
 export type ApiPlanPlanPostError = ApiPlanPlanPostErrors[keyof ApiPlanPlanPostErrors];
 
 export type ApiPlanPlanPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ApiGetGraphGraphPostData = {
+    body: GraphRequest;
+    path?: never;
+    query?: never;
+    url: '/graph';
+};
+
+export type ApiGetGraphGraphPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApiGetGraphGraphPostError = ApiGetGraphGraphPostErrors[keyof ApiGetGraphGraphPostErrors];
+
+export type ApiGetGraphGraphPostResponses = {
     /**
      * Successful Response
      */

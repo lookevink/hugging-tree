@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ApiAnalyzeAnalyzePostData, ApiAnalyzeAnalyzePostErrors, ApiAnalyzeAnalyzePostResponses, ApiListProjectsProjectsGetData, ApiListProjectsProjectsGetResponses, ApiPlanPlanPostData, ApiPlanPlanPostErrors, ApiPlanPlanPostResponses, ApiQueryQueryPostData, ApiQueryQueryPostErrors, ApiQueryQueryPostResponses, ApiScanScanPostData, ApiScanScanPostErrors, ApiScanScanPostResponses } from './types.gen';
+import type { ApiAnalyzeAnalyzePostData, ApiAnalyzeAnalyzePostErrors, ApiAnalyzeAnalyzePostResponses, ApiGetGraphGraphPostData, ApiGetGraphGraphPostErrors, ApiGetGraphGraphPostResponses, ApiListProjectsProjectsGetData, ApiListProjectsProjectsGetResponses, ApiPlanPlanPostData, ApiPlanPlanPostErrors, ApiPlanPlanPostResponses, ApiQueryQueryPostData, ApiQueryQueryPostErrors, ApiQueryQueryPostResponses, ApiScanScanPostData, ApiScanScanPostErrors, ApiScanScanPostResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -59,6 +59,21 @@ export const apiAnalyzeAnalyzePost = <ThrowOnError extends boolean = false>(opti
  */
 export const apiPlanPlanPost = <ThrowOnError extends boolean = false>(options: Options<ApiPlanPlanPostData, ThrowOnError>) => (options.client ?? client).post<ApiPlanPlanPostResponses, ApiPlanPlanPostErrors, ThrowOnError>({
     url: '/plan',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Api Get Graph
+ *
+ * Get graph data for visualization.
+ * Returns nodes and edges in a format suitable for graph visualization libraries.
+ */
+export const apiGetGraphGraphPost = <ThrowOnError extends boolean = false>(options: Options<ApiGetGraphGraphPostData, ThrowOnError>) => (options.client ?? client).post<ApiGetGraphGraphPostResponses, ApiGetGraphGraphPostErrors, ThrowOnError>({
+    url: '/graph',
     ...options,
     headers: {
         'Content-Type': 'application/json',

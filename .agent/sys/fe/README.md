@@ -167,3 +167,10 @@ The web UI provides:
 
 All tabs support selecting a project from the Projects tab, which auto-fills the path field.
 
+
+
+whe new packages are installed:
+
+```sh
+docker-compose restart frontend
+```

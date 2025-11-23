@@ -9,13 +9,14 @@ import { Label } from '@/components/ui/label'
 import '@/src/lib/api-client' // Ensure API client is configured
 import { apiPlanPlanPost } from '@/src/lib/api'
 import { toast } from 'sonner'
-import { Loader2, FileText } from 'lucide-react'
+import { Loader2, FileText, Network } from 'lucide-react'
 
 interface PlanTabProps {
   projectPath: string
+  onShowGraph?: (files: string[]) => void
 }
 
-export function PlanTab({ projectPath }: PlanTabProps) {
+export function PlanTab({ projectPath, onShowGraph }: PlanTabProps) {
   const [task, setTask] = useState('')
   const [n, setN] = useState(10)
   const [model, setModel] = useState('')
@@ -124,10 +125,36 @@ export function PlanTab({ projectPath }: PlanTabProps) {
         {result && (
           <Card className="mt-4">
             <CardHeader>
-              <CardTitle>Generated Plan</CardTitle>
-              {result.model_name && (
-                <CardDescription>Model: {result.model_name}</CardDescription>
-              )}
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Generated Plan</CardTitle>
+                  {result.model_name && (
+                    <CardDescription>Model: {result.model_name}</CardDescription>
+                  )}
+                </div>
+                {onShowGraph && result.plan_xml && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      // Extract file paths from XML
+                      const xmlText = result.plan_xml
+                      const fileMatches = xmlText.match(/path="([^"]+)"/g) || []
+                      const files = fileMatches
+                        .map(match => match.replace(/path="([^"]+)"/, '$1'))
+                        .filter((f, i, arr) => arr.indexOf(f) === i) // deduplicate
+                      if (files.length > 0) {
+                        onShowGraph(files)
+                      } else {
+                        toast.info('No file paths found in plan')
+                      }
+                    }}
+                  >
+                    <Network className="h-4 w-4 mr-2" />
+                    View Graph
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <pre className="bg-muted p-4 rounded-md overflow-auto text-sm whitespace-pre-wrap max-h-96">

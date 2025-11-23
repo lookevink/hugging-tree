@@ -3,11 +3,11 @@
 import { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScanTab } from '@/components/scan-tab'
 import { QueryTab } from '@/components/query-tab'
 import { AnalyzeTab } from '@/components/analyze-tab'
 import { PlanTab } from '@/components/plan-tab'
+import { GraphTab } from '@/components/graph-tab'
 import { ArrowLeft } from 'lucide-react'
 
 interface ProjectDetailViewProps {
@@ -16,6 +16,14 @@ interface ProjectDetailViewProps {
 }
 
 export function ProjectDetailView({ projectPath, onBack }: ProjectDetailViewProps) {
+  const [activeTab, setActiveTab] = useState('scan')
+  const [graphFilterFiles, setGraphFilterFiles] = useState<string[] | undefined>(undefined)
+
+  const handleShowGraph = (files: string[]) => {
+    setGraphFilterFiles(files)
+    setActiveTab('graph')
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
@@ -29,12 +37,13 @@ export function ProjectDetailView({ projectPath, onBack }: ProjectDetailViewProp
         </div>
       </div>
 
-      <Tabs defaultValue="scan" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="scan">Climb</TabsTrigger>
           <TabsTrigger value="query">Hang</TabsTrigger>
           <TabsTrigger value="analyze">Shake</TabsTrigger>
           <TabsTrigger value="plan">Plant</TabsTrigger>
+          <TabsTrigger value="graph">Graph</TabsTrigger>
         </TabsList>
 
         <TabsContent value="scan" className="mt-6">
@@ -46,11 +55,15 @@ export function ProjectDetailView({ projectPath, onBack }: ProjectDetailViewProp
         </TabsContent>
 
         <TabsContent value="analyze" className="mt-6">
-          <AnalyzeTab projectPath={projectPath} />
+          <AnalyzeTab projectPath={projectPath} onShowGraph={handleShowGraph} />
         </TabsContent>
 
         <TabsContent value="plan" className="mt-6">
-          <PlanTab projectPath={projectPath} />
+          <PlanTab projectPath={projectPath} onShowGraph={handleShowGraph} />
+        </TabsContent>
+
+        <TabsContent value="graph" className="mt-6">
+          <GraphTab projectPath={projectPath} filterFiles={graphFilterFiles} />
         </TabsContent>
       </Tabs>
     </div>
