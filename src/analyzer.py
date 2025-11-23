@@ -105,7 +105,8 @@ class ContextAnalyzer:
         
         return {
             'task': task_description,
-            'semantic_matches': len(expanded['semantic_matches']),
+            'semantic_matches_count': len(expanded['semantic_matches']),
+            'semantic_matches': expanded['semantic_matches'],
             'related_files': expanded['related_files'],
             'analysis': analysis,
             'structured': structured_analysis

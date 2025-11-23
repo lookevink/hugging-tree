@@ -18,6 +18,6 @@ COPY . .
 EXPOSE 3000
 
 # Start development server
-# If node_modules is empty (volume issue), reinstall dependencies
-CMD ["sh", "-c", "if [ ! -d node_modules ] || [ -z \"$(ls -A node_modules)\" ]; then pnpm install --frozen-lockfile; fi && pnpm run dev"]
+# If node_modules is empty OR if react-markdown is missing (package.json changed), reinstall dependencies
+CMD ["sh", "-c", "export CI=true && if [ ! -d node_modules ] || [ -z \"$(ls -A node_modules)\" ] || [ ! -d \"node_modules/react-markdown\" ]; then pnpm install --frozen-lockfile; fi && pnpm run dev"]
 

@@ -31,10 +31,10 @@ export function ProjectDetailView({ projectPath, onBack }: ProjectDetailViewProp
 
       <Tabs defaultValue="scan" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="scan">Scan</TabsTrigger>
-          <TabsTrigger value="query">Query</TabsTrigger>
-          <TabsTrigger value="analyze">Analyze</TabsTrigger>
-          <TabsTrigger value="plan">Plan</TabsTrigger>
+          <TabsTrigger value="scan">Climb</TabsTrigger>
+          <TabsTrigger value="query">Hang</TabsTrigger>
+          <TabsTrigger value="analyze">Shake</TabsTrigger>
+          <TabsTrigger value="plan">Plant</TabsTrigger>
         </TabsList>
 
         <TabsContent value="scan" className="mt-6">
