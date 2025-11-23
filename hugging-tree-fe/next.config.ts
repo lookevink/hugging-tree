@@ -17,6 +17,8 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // Transpile Radix UI packages to help with module resolution
+  transpilePackages: ['@radix-ui/react-label'],
 };
 
 export default nextConfig;
