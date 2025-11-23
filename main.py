@@ -218,10 +218,13 @@ def logic_plan(task: str, path: str, n: int, model: Optional[str], prompt_templa
     )
     
     try:
-        plan_xml = planner.generate_plan(task, n_results=n)
+        plan_result = planner.generate_plan(task, n_results=n)
         return {
             "model_name": planner.model_name,
-            "plan_xml": plan_xml
+            "plan_xml": plan_result["plan_xml"],
+            "related_files": plan_result["related_files"],
+            "semantic_matches": plan_result["semantic_matches"],
+            "semantic_matches_count": plan_result["semantic_matches_count"]
         }
     finally:
         planner.close()
@@ -370,9 +373,8 @@ def api_plan(request: PlanRequest):
     try:
         result = logic_plan(request.task, request.path, request.n, request.model, request.prompt_template)
         
-        if request.format == "xml":
-            return Response(content=result["plan_xml"], media_type="application/xml")
-            
+        # Always return JSON with plan_xml as a string field
+        # The XML is still valid and copyable, but now we also have structured data for visualization
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -662,6 +664,7 @@ def plan(
         print(f"🤖 Using model: {model_name}\n")
         print("=" * 80)
         
+        # For CLI, just print the XML (backward compatible)
         print(plan_xml)
         
     except Exception as e:

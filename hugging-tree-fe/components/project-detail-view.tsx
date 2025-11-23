@@ -43,7 +43,7 @@ export function ProjectDetailView({ projectPath, onBack }: ProjectDetailViewProp
           <TabsTrigger value="query">Hang</TabsTrigger>
           <TabsTrigger value="analyze">Shake</TabsTrigger>
           <TabsTrigger value="plan">Plant</TabsTrigger>
-          <TabsTrigger value="graph">Graph</TabsTrigger>
+          <TabsTrigger value="graph">Dig</TabsTrigger>
         </TabsList>
 
         <TabsContent value="scan" className="mt-6">

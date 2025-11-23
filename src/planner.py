@@ -109,7 +109,7 @@ Follow this XML structure exactly:
 Output ONLY valid XML. Do not include markdown formatting (```xml).
 """
 
-    def generate_plan(self, task_description: str, n_results: int = 10) -> str:
+    def generate_plan(self, task_description: str, n_results: int = 10) -> Dict[str, Any]:
         """
         Generates an execution plan for the given task.
         
@@ -118,7 +118,11 @@ Output ONLY valid XML. Do not include markdown formatting (```xml).
             n_results: Number of semantic matches to consider
             
         Returns:
-            XML string containing the execution plan
+            Dictionary containing:
+            - plan_xml: XML string containing the execution plan
+            - related_files: List of related file paths for visualization
+            - semantic_matches: List of semantic matches with context
+            - semantic_matches_count: Number of semantic matches
         """
         # 1. Get semantic search results
         vector_results = self.embeddings.query(task_description, n_results=n_results)
@@ -138,8 +142,16 @@ Output ONLY valid XML. Do not include markdown formatting (```xml).
             related_files_count=expanded['total_files']
         )
         
-        # 5. Generate Plan
-        return self._generate_xml(prompt)
+        # 5. Generate Plan XML
+        plan_xml = self._generate_xml(prompt)
+        
+        # 6. Return both XML and context data for visualization
+        return {
+            'plan_xml': plan_xml,
+            'related_files': expanded['related_files'],
+            'semantic_matches': expanded['semantic_matches'],
+            'semantic_matches_count': len(expanded['semantic_matches'])
+        }
 
     def _generate_xml(self, prompt: str) -> str:
         """Generates XML using Gemini."""

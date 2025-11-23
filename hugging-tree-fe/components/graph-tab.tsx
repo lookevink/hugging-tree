@@ -20,17 +20,14 @@ import { apiGetGraphGraphPost } from '@/src/lib/api'
 const InteractiveNvlWrapper = dynamic(
   () => {
     return import('@neo4j-nvl/react').then((mod) => {
-      console.log('NVL module loaded successfully')
       // Log worker creation attempts for debugging
       if (typeof window !== 'undefined') {
         const originalWorker = window.Worker
         window.Worker = class extends originalWorker {
           constructor(scriptURL: string | URL, options?: WorkerOptions) {
             const urlStr = typeof scriptURL === 'string' ? scriptURL : scriptURL.toString()
-            console.log('Worker being created with URL:', urlStr)
             try {
               super(scriptURL, options)
-              console.log('Worker created successfully')
             } catch (error) {
               console.error('Worker creation failed:', error, 'URL:', urlStr)
               // Don't throw - let the library handle the error
@@ -144,18 +141,10 @@ export function GraphTab({ projectPath, filterFiles }: GraphTabProps) {
 
       if (response.data) {
         const data = response.data as unknown as GraphData
-        console.log('Graph data received:', {
-          nodeCount: data.nodes?.length || 0,
-          edgeCount: data.edges?.length || 0,
-        })
+      
         setOriginalGraphData(data) // Store original data for node details
         const converted = convertToNvlFormat(data)
-        console.log('Converted NVL data:', {
-          nodeCount: converted.nodes?.length || 0,
-          relCount: converted.relationships?.length || 0,
-          sampleNode: converted.nodes[0],
-          sampleRel: converted.relationships[0],
-        })
+      
         setNvlData(converted)
         setIsFiltered(!!filePaths)
       }
@@ -180,7 +169,6 @@ export function GraphTab({ projectPath, filterFiles }: GraphTabProps) {
 
 
   const handleNodeClick = useCallback((node: unknown) => {
-    console.log('Node clicked:', node)
     // Find the original node data and related nodes
     if (originalGraphData && node && typeof node === 'object' && 'id' in node) {
       const nodeId = node.id as string
@@ -210,16 +198,13 @@ export function GraphTab({ projectPath, filterFiles }: GraphTabProps) {
   }, [originalGraphData])
 
   const handleRelationshipClick = useCallback((relationship: unknown) => {
-    console.log('Relationship clicked:', relationship)
   }, [])
 
   // Use library's built-in callbacks for zoom and pan (as per documentation)
   const handleZoom = useCallback((zoomLevel: number) => {
-    console.log('Zoom:', zoomLevel)
   }, [])
 
   const handlePan = useCallback((panning: { x: number; y: number }, evt: MouseEvent) => {
-    console.log('Pan:', panning, evt)
   }, [])
 
   const handleClearFilter = () => {
