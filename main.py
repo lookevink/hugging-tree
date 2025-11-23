@@ -3,6 +3,7 @@ import os
 import subprocess
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Response
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 
@@ -20,6 +21,16 @@ load_dotenv(override=False)
 # --- 1. SETUP APPS ---
 app = typer.Typer()
 api = FastAPI(title="Hugging Tree API", description="API for Hugging Tree Codebase Analysis")
+
+# Add CORS middleware to allow direct client calls (bypassing Next.js proxy)
+# This avoids the 30s rewrite timeout issue
+api.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3033", "http://localhost:3000"],  # Next.js dev ports
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- 2. DATA MODELS ---
 class ScanRequest(BaseModel):

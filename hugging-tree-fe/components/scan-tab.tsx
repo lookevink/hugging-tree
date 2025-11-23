@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import '@/src/lib/api-client' // Ensure API client is configured
 import { apiScanScanPost } from '@/src/lib/api'
 import { toast } from 'sonner'
 import { Loader2, Scan, CheckCircle2 } from 'lucide-react'

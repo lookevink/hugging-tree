@@ -42,15 +42,15 @@ services:
     container_name: hugging-tree-frontend
     volumes:
       - ./hugging-tree-fe:/app
-      - /app/node_modules
+      - frontend_node_modules:/app/node_modules
       - /app/.next
     ports:
       - "3033:3000"
     environment:
       # Backend URL for Next.js rewrites (internal Docker network)
       - BACKEND_URL=http://app:8000
-      # Public API URL for direct client-side calls (optional, rewrites handle it)
-      - NEXT_PUBLIC_API_URL=/api
+      # Public API URL for direct client-side calls (bypasses Next.js proxy)
+      - NEXT_PUBLIC_API_URL=http://localhost:8088
     depends_on:
       - app
     networks:
@@ -63,3 +63,4 @@ networks:
 volumes:
   neo4j_data:
   neo4j_logs:
+  frontend_node_modules:

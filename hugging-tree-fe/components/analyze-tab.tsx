@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import '@/src/lib/api-client' // Ensure API client is configured
 import { apiAnalyzeAnalyzePost } from '@/src/lib/api'
 import { toast } from 'sonner'
 import { Loader2, Brain } from 'lucide-react'

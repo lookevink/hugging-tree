@@ -3,12 +3,27 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import '@/src/lib/api-client' // Ensure API client is configured
 import { apiListProjectsProjectsGet } from '@/src/lib/api'
 import { toast } from 'sonner'
 import { CheckCircle2, Circle, GitBranch, Folder, Loader2 } from 'lucide-react'
-import type { paths } from '@/src/lib/api/types'
 
-type ProjectsResponse = paths['/projects']['get']['responses']['200']['content']['application/json']
+// Type definition based on the API response structure
+type Project = {
+  name: string
+  path: string
+  is_git_repo: boolean
+  is_scanned: boolean
+  file_count: number
+}
+
+type ProjectsResponse = {
+  projects_root: string | null
+  projects: Project[]
+  total: number
+  scanned_count: number
+  error?: string
+}
 
 export function ProjectsView({ onSelectProject }: { onSelectProject: (path: string) => void }) {
   const [projects, setProjects] = useState<ProjectsResponse['projects']>([])
@@ -22,6 +37,7 @@ export function ProjectsView({ onSelectProject }: { onSelectProject: (path: stri
   const loadProjects = async () => {
     try {
       setLoading(true)
+      // Use the default configured client (no need to pass explicitly)
       const response = await apiListProjectsProjectsGet()
       
       if (response.data) {
@@ -29,9 +45,10 @@ export function ProjectsView({ onSelectProject }: { onSelectProject: (path: stri
         setProjects(data.projects || [])
         setProjectsRoot(data.projects_root || '')
       }
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load projects'
       toast.error('Error loading projects', {
-        description: error.message || 'Failed to load projects',
+        description: errorMessage,
       })
     } finally {
       setLoading(false)
