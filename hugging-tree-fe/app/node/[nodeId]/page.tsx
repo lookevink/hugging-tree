@@ -9,6 +9,16 @@ import { Loader2, ArrowLeft, Code, Network, FileText, Info } from 'lucide-react'
 import { toast } from 'sonner'
 import '@/src/lib/api-client'
 import { getNodeDetailsNodeDetailsPost } from '@/src/lib/api'
+import {
+  CodeBlock,
+  CodeBlockBody,
+  CodeBlockContent,
+  CodeBlockCopyButton,
+  CodeBlockFilename,
+  CodeBlockFiles,
+  CodeBlockHeader,
+  CodeBlockItem,
+} from '@/src/components/ui/shadcn-io/code-block'
 
 // Dynamically import InteractiveNvlWrapper to avoid SSR issues
 const InteractiveNvlWrapper = dynamic(
@@ -155,6 +165,60 @@ export default function NodeDetailsPage() {
 
   const nvlData = convertToNvlFormat(related_nodes, related_edges, node)
 
+  // Helper function to detect language from file path
+  const detectLanguage = (path: string | undefined): string => {
+    if (!path) return 'typescript'
+    const ext = path.split('.').pop()?.toLowerCase()
+    const languageMap: Record<string, string> = {
+      'ts': 'typescript',
+      'tsx': 'typescript',
+      'js': 'javascript',
+      'jsx': 'javascript',
+      'py': 'python',
+      'java': 'java',
+      'cpp': 'cpp',
+      'c': 'c',
+      'cs': 'csharp',
+      'go': 'go',
+      'rs': 'rust',
+      'rb': 'ruby',
+      'php': 'php',
+      'swift': 'swift',
+      'kt': 'kotlin',
+      'scala': 'scala',
+      'sh': 'bash',
+      'yaml': 'yaml',
+      'yml': 'yaml',
+      'json': 'json',
+      'xml': 'xml',
+      'html': 'html',
+      'css': 'css',
+      'scss': 'scss',
+      'sass': 'sass',
+      'less': 'less',
+      'md': 'markdown',
+      'sql': 'sql',
+      'r': 'r',
+      'm': 'matlab',
+      'pl': 'perl',
+      'lua': 'lua',
+      'dart': 'dart',
+      'vue': 'vue',
+      'svelte': 'svelte',
+    }
+    return languageMap[ext || ''] || 'typescript'
+  }
+
+  const codeBlockData = source_code
+    ? [
+        {
+          language: detectLanguage(node.path),
+          filename: node.path || 'code',
+          code: source_code,
+        },
+      ]
+    : []
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       <div className="container mx-auto px-4 py-8">
@@ -238,9 +302,29 @@ export default function NodeDetailsPage() {
             </CardHeader>
             <CardContent>
               {source_code ? (
-                <pre className="bg-muted p-4 rounded-md overflow-auto text-sm max-h-[600px]">
-                  <code>{source_code}</code>
-                </pre>
+                <div className="max-h-[600px] overflow-auto">
+                  <CodeBlock data={codeBlockData} defaultValue={codeBlockData[0]?.filename}>
+                    <CodeBlockHeader>
+                      <CodeBlockFiles>
+                        {(item: { language: string; filename: string; code: string }) => (
+                          <CodeBlockFilename value={item.filename}>
+                            {item.filename}
+                          </CodeBlockFilename>
+                        )}
+                      </CodeBlockFiles>
+                      <CodeBlockCopyButton />
+                    </CodeBlockHeader>
+                    <CodeBlockBody>
+                      {(item: { language: string; filename: string; code: string }) => (
+                        <CodeBlockItem value={item.filename} lineNumbers>
+                          <CodeBlockContent language={item.language}>
+                            {item.code}
+                          </CodeBlockContent>
+                        </CodeBlockItem>
+                      )}
+                    </CodeBlockBody>
+                  </CodeBlock>
+                </div>
               ) : (
                 <div className="text-muted-foreground text-center py-8">
                   No source code available
