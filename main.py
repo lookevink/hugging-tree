@@ -14,6 +14,7 @@ from src.resolver import ImportResolver
 from src.embeddings import EmbeddingService
 from src.analyzer import ContextAnalyzer
 from src.planner import PlanGenerator
+from src.deep_trace import DeepTraceService
 
 # Load environment variables (don't override existing env vars)
 load_dotenv(override=False)
@@ -59,9 +60,18 @@ class PlanRequest(BaseModel):
     format: Optional[str] = "json" # "json" or "xml"
 
 class GraphRequest(BaseModel):
-    path: str
-    file_paths: Optional[List[str]] = None  # Filter to specific files
-    max_nodes: Optional[int] = 500  # Limit number of nodes
+    project_root: str
+    file_paths: Optional[List[str]] = None
+    max_nodes: int = 500
+
+class DeepTraceAnalyzeRequest(BaseModel):
+    node_id: str
+    project_root: str
+
+class DeepTraceApplyRequest(BaseModel):
+    source_id: str
+    target_id: str
+    rel_type: str
 
 # --- 3. SHARED LOGIC ---
 
@@ -380,13 +390,40 @@ def api_plan(request: PlanRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api.post("/graph")
-def api_get_graph(request: GraphRequest):
+async def get_graph(request: GraphRequest):
     """
     Get graph data for visualization.
     Returns nodes and edges in a format suitable for graph visualization libraries.
     """
     try:
-        return logic_get_graph(request.path, file_paths=request.file_paths, max_nodes=request.max_nodes)
+        graph = GraphDB()
+        data = graph.get_graph_for_visualization(request.project_root, request.file_paths, request.max_nodes)
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api.post("/deep-trace/analyze")
+async def deep_trace_analyze(request: DeepTraceAnalyzeRequest):
+    """
+    Analyzes a node for potential deep trace relationships.
+    """
+    try:
+        graph = GraphDB()
+        service = DeepTraceService(graph)
+        return service.analyze_node(request.node_id, request.project_root)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api.post("/deep-trace/apply")
+async def deep_trace_apply(request: DeepTraceApplyRequest):
+    """
+    Applies a deep trace relationship between two nodes.
+    """
+    try:
+        graph = GraphDB()
+        service = DeepTraceService(graph)
+        service.apply_relationship(request.source_id, request.target_id, request.rel_type)
+        return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

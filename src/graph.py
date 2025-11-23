@@ -609,3 +609,79 @@ class GraphDB:
                 'nodes': nodes,
                 'edges': edges
             }
+            
+    def get_node_source(self, node_id: str) -> Optional[str]:
+        """
+        Retrieves the source code for a given node (File or Definition).
+        """
+        with self.driver.session() as session:
+            # Check if it's a definition
+            if node_id.startswith("def:"):
+                query = """
+                MATCH (d:Definition {id: $id})
+                RETURN d.code as code
+                """
+                result = session.run(query, id=node_id[4:]) # Strip 'def:' prefix
+                record = result.single()
+                if record:
+                    return record['code']
+            
+            # Check if it's a file
+            elif node_id.startswith("file:"):
+                # For files, we might need to read from disk if we don't store full content in DB
+                # But we have the path
+                path = node_id[5:] # Strip 'file:' prefix
+                if os.path.exists(path):
+                    try:
+                        with open(path, 'r', encoding='utf-8') as f:
+                            return f.read()
+                    except Exception:
+                        return None
+            
+            return None
+
+    def find_nodes_by_path_fuzzy(self, path_fragment: str, project_root: str) -> List[Dict[str, Any]]:
+        """
+        Finds API endpoints or functions that might match a path fragment.
+        """
+        with self.driver.session() as session:
+            # Search for ApiEndpoints matching the path
+            query = """
+            MATCH (api:ApiEndpoint)
+            WHERE api.path CONTAINS $fragment
+            RETURN api
+            LIMIT 5
+            """
+            result = session.run(query, fragment=path_fragment)
+            matches = []
+            for record in result:
+                node = record['api']
+                matches.append({
+                    'id': f"api:{node['id']}",
+                    'label': f"{node['method']} {node['path']}",
+                    'type': 'api_endpoint',
+                    'score': 1.0 # Placeholder score
+                })
+            return matches
+
+    def create_deep_trace_relationship(self, source_id: str, target_id: str, rel_type: str, props: Dict[str, Any] = None):
+        """
+        Creates a relationship between two nodes based on Deep Trace analysis.
+        """
+        with self.driver.session() as session:
+            # Determine node labels/types based on ID prefix
+            source_label = "Definition" if source_id.startswith("def:") else "File"
+            target_label = "ApiEndpoint" if target_id.startswith("api:") else "Definition" # Simplified
+            
+            # Strip prefixes
+            s_id = source_id.split(':', 1)[1]
+            t_id = target_id.split(':', 1)[1]
+            
+            query = f"""
+            MATCH (s:{source_label} {{id: $s_id}})
+            MATCH (t:{target_label} {{id: $t_id}})
+            MERGE (s)-[r:{rel_type}]->(t)
+            SET r += $props
+            RETURN r
+            """
+            session.run(query, s_id=s_id, t_id=t_id, props=props or {})

@@ -31,13 +31,45 @@ export type AnalyzeRequest = {
 };
 
 /**
+ * DeepTraceAnalyzeRequest
+ */
+export type DeepTraceAnalyzeRequest = {
+    /**
+     * Node Id
+     */
+    node_id: string;
+    /**
+     * Project Root
+     */
+    project_root: string;
+};
+
+/**
+ * DeepTraceApplyRequest
+ */
+export type DeepTraceApplyRequest = {
+    /**
+     * Source Id
+     */
+    source_id: string;
+    /**
+     * Target Id
+     */
+    target_id: string;
+    /**
+     * Rel Type
+     */
+    rel_type: string;
+};
+
+/**
  * GraphRequest
  */
 export type GraphRequest = {
     /**
-     * Path
+     * Project Root
      */
-    path: string;
+    project_root: string;
     /**
      * File Paths
      */
@@ -45,7 +77,7 @@ export type GraphRequest = {
     /**
      * Max Nodes
      */
-    max_nodes?: number | null;
+    max_nodes?: number;
 };
 
 /**
@@ -234,23 +266,69 @@ export type ApiPlanPlanPostResponses = {
     200: unknown;
 };
 
-export type ApiGetGraphGraphPostData = {
+export type GetGraphGraphPostData = {
     body: GraphRequest;
     path?: never;
     query?: never;
     url: '/graph';
 };
 
-export type ApiGetGraphGraphPostErrors = {
+export type GetGraphGraphPostErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type ApiGetGraphGraphPostError = ApiGetGraphGraphPostErrors[keyof ApiGetGraphGraphPostErrors];
+export type GetGraphGraphPostError = GetGraphGraphPostErrors[keyof GetGraphGraphPostErrors];
 
-export type ApiGetGraphGraphPostResponses = {
+export type GetGraphGraphPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type DeepTraceAnalyzeDeepTraceAnalyzePostData = {
+    body: DeepTraceAnalyzeRequest;
+    path?: never;
+    query?: never;
+    url: '/deep-trace/analyze';
+};
+
+export type DeepTraceAnalyzeDeepTraceAnalyzePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeepTraceAnalyzeDeepTraceAnalyzePostError = DeepTraceAnalyzeDeepTraceAnalyzePostErrors[keyof DeepTraceAnalyzeDeepTraceAnalyzePostErrors];
+
+export type DeepTraceAnalyzeDeepTraceAnalyzePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type DeepTraceApplyDeepTraceApplyPostData = {
+    body: DeepTraceApplyRequest;
+    path?: never;
+    query?: never;
+    url: '/deep-trace/apply';
+};
+
+export type DeepTraceApplyDeepTraceApplyPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeepTraceApplyDeepTraceApplyPostError = DeepTraceApplyDeepTraceApplyPostErrors[keyof DeepTraceApplyDeepTraceApplyPostErrors];
+
+export type DeepTraceApplyDeepTraceApplyPostResponses = {
     /**
      * Successful Response
      */

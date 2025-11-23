@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import '@/src/lib/api-client'
-import { apiGetGraphGraphPost } from '@/src/lib/api'
+import { getGraphGraphPost, deepTraceAnalyzeDeepTraceAnalyzePost, deepTraceApplyDeepTraceApplyPost } from '@/src/lib/api'
 
 // Dynamically import InteractiveNvlWrapper to avoid SSR issues
 const InteractiveNvlWrapper = dynamic(
@@ -127,13 +127,68 @@ export function GraphTab({ projectPath, filterFiles }: GraphTabProps) {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null)
   const [relatedNodes, setRelatedNodes] = useState<{ node: GraphNode; relationship: GraphEdge }[]>([])
   const [isNodeDialogOpen, setIsNodeDialogOpen] = useState(false)
+  const [deepTraceLoading, setDeepTraceLoading] = useState(false)
+  const [deepTraceResults, setDeepTraceResults] = useState<any[]>([])
+  const [showDeepTraceResults, setShowDeepTraceResults] = useState(false)
+
+  const handleDeepTrace = async () => {
+    if (!selectedNode) return
+    
+    try {
+      setDeepTraceLoading(true)
+      setShowDeepTraceResults(true)
+      const response = await deepTraceAnalyzeDeepTraceAnalyzePost({
+        body: {
+          node_id: selectedNode.id,
+          project_root: projectPath
+        }
+      })
+      
+      if (response.data && (response.data as any).results) {
+        setDeepTraceResults((response.data as any).results)
+      } else {
+        setDeepTraceResults([])
+      }
+    } catch (error) {
+      toast.error("Deep Trace Failed", {
+        description: error instanceof Error ? error.message : "Unknown error"
+      })
+    } finally {
+      setDeepTraceLoading(false)
+    }
+  }
+
+  const handleApplyDeepTrace = async (result: any, match: any) => {
+    if (!selectedNode) return
+    
+    try {
+      await deepTraceApplyDeepTraceApplyPost({
+        body: {
+          source_id: selectedNode.id,
+          target_id: match.id,
+          rel_type: result.call.type === 'api_call' ? 'CALLS_API' : 'PRODUCES_EVENT'
+        }
+      })
+      
+      toast.success("Relationship Applied", {
+        description: `Linked to ${match.label}`
+      })
+      
+      // Reload graph to show new link
+      loadGraph(isFiltered ? filterFiles : undefined)
+      setIsNodeDialogOpen(false)
+      
+    } catch (error) {
+      toast.error("Failed to apply relationship")
+    }
+  }
 
   const loadGraph = useCallback(async (filePaths?: string[]) => {
     try {
       setLoading(true)
-      const response = await apiGetGraphGraphPost({
+      const response = await getGraphGraphPost({
         body: {
-          path: projectPath,
+          project_root: projectPath,
           file_paths: filePaths || null,
           max_nodes: filePaths ? 200 : 500, // Limit nodes when filtering
         },
@@ -409,6 +464,89 @@ export function GraphTab({ projectPath, filterFiles }: GraphTabProps) {
                   No related nodes found
                 </div>
               )}
+              {/* Deep Trace Section */}
+              <div className="pt-4 border-t">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold">Deep Trace Analysis</h3>
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    onClick={handleDeepTrace}
+                    disabled={deepTraceLoading}
+                  >
+                    {deepTraceLoading ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                        Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <Network className="h-3 w-3 mr-2" />
+                        Run Deep Trace
+                      </>
+                    )}
+                  </Button>
+                </div>
+                
+                {showDeepTraceResults && (
+                  <div className="space-y-4">
+                    {deepTraceLoading ? (
+                      <div className="text-sm text-muted-foreground">
+                        Analyzing source code for implicit relationships...
+                      </div>
+                    ) : deepTraceResults.length > 0 ? (
+                      <div className="space-y-3">
+                        {deepTraceResults.map((result, idx) => (
+                          <div key={idx} className="p-3 border rounded-lg bg-muted/30">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <div className="font-medium text-sm flex items-center gap-2">
+                                  <span className="uppercase text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                                    {result.call.method || 'EVENT'}
+                                  </span>
+                                  <span className="font-mono">{result.call.target}</span>
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-1 font-mono bg-muted p-1 rounded">
+                                  {result.call.evidence}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="mt-3 pl-4 border-l-2">
+                              <div className="text-xs font-medium text-muted-foreground mb-2">Proposed Matches:</div>
+                              {result.proposed_matches && result.proposed_matches.length > 0 ? (
+                                <div className="space-y-2">
+                                  {result.proposed_matches.map((match: any) => (
+                                    <div key={match.id} className="flex items-center justify-between bg-background p-2 rounded border">
+                                      <div className="text-sm truncate flex-1 mr-2">
+                                        {match.label}
+                                      </div>
+                                      <Button 
+                                        size="sm" 
+                                        variant="outline" 
+                                        className="h-7 text-xs"
+                                        onClick={() => handleApplyDeepTrace(result, match)}
+                                      >
+                                        Link
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-xs text-muted-foreground italic">No internal matches found</div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground italic">
+                        No implicit relationships found.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>

@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ApiAnalyzeAnalyzePostData, ApiAnalyzeAnalyzePostErrors, ApiAnalyzeAnalyzePostResponses, ApiGetGraphGraphPostData, ApiGetGraphGraphPostErrors, ApiGetGraphGraphPostResponses, ApiListProjectsProjectsGetData, ApiListProjectsProjectsGetResponses, ApiPlanPlanPostData, ApiPlanPlanPostErrors, ApiPlanPlanPostResponses, ApiQueryQueryPostData, ApiQueryQueryPostErrors, ApiQueryQueryPostResponses, ApiScanScanPostData, ApiScanScanPostErrors, ApiScanScanPostResponses } from './types.gen';
+import type { ApiAnalyzeAnalyzePostData, ApiAnalyzeAnalyzePostErrors, ApiAnalyzeAnalyzePostResponses, ApiListProjectsProjectsGetData, ApiListProjectsProjectsGetResponses, ApiPlanPlanPostData, ApiPlanPlanPostErrors, ApiPlanPlanPostResponses, ApiQueryQueryPostData, ApiQueryQueryPostErrors, ApiQueryQueryPostResponses, ApiScanScanPostData, ApiScanScanPostErrors, ApiScanScanPostResponses, DeepTraceAnalyzeDeepTraceAnalyzePostData, DeepTraceAnalyzeDeepTraceAnalyzePostErrors, DeepTraceAnalyzeDeepTraceAnalyzePostResponses, DeepTraceApplyDeepTraceApplyPostData, DeepTraceApplyDeepTraceApplyPostErrors, DeepTraceApplyDeepTraceApplyPostResponses, GetGraphGraphPostData, GetGraphGraphPostErrors, GetGraphGraphPostResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -67,13 +67,41 @@ export const apiPlanPlanPost = <ThrowOnError extends boolean = false>(options: O
 });
 
 /**
- * Api Get Graph
+ * Get Graph
  *
  * Get graph data for visualization.
  * Returns nodes and edges in a format suitable for graph visualization libraries.
  */
-export const apiGetGraphGraphPost = <ThrowOnError extends boolean = false>(options: Options<ApiGetGraphGraphPostData, ThrowOnError>) => (options.client ?? client).post<ApiGetGraphGraphPostResponses, ApiGetGraphGraphPostErrors, ThrowOnError>({
+export const getGraphGraphPost = <ThrowOnError extends boolean = false>(options: Options<GetGraphGraphPostData, ThrowOnError>) => (options.client ?? client).post<GetGraphGraphPostResponses, GetGraphGraphPostErrors, ThrowOnError>({
     url: '/graph',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Deep Trace Analyze
+ *
+ * Analyzes a node for potential deep trace relationships.
+ */
+export const deepTraceAnalyzeDeepTraceAnalyzePost = <ThrowOnError extends boolean = false>(options: Options<DeepTraceAnalyzeDeepTraceAnalyzePostData, ThrowOnError>) => (options.client ?? client).post<DeepTraceAnalyzeDeepTraceAnalyzePostResponses, DeepTraceAnalyzeDeepTraceAnalyzePostErrors, ThrowOnError>({
+    url: '/deep-trace/analyze',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Deep Trace Apply
+ *
+ * Applies a deep trace relationship between two nodes.
+ */
+export const deepTraceApplyDeepTraceApplyPost = <ThrowOnError extends boolean = false>(options: Options<DeepTraceApplyDeepTraceApplyPostData, ThrowOnError>) => (options.client ?? client).post<DeepTraceApplyDeepTraceApplyPostResponses, DeepTraceApplyDeepTraceApplyPostErrors, ThrowOnError>({
+    url: '/deep-trace/apply',
     ...options,
     headers: {
         'Content-Type': 'application/json',
