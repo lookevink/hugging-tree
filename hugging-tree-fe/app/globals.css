@@ -57,8 +57,8 @@
   --primary: oklch(0.55 0.12 150);
   --primary-foreground: oklch(0.98 0.015 140);
   /* Warm pastel brown secondary - like tree bark */
-  --secondary: oklch(0.85 0.03 45);
-  --secondary-foreground: oklch(0.35 0.05 45);
+  --secondary: oklch(0.4888 0.0696 54.06);
+  --secondary-foreground: oklch(0.30 0.08 45);
   /* Soft sage green muted - like dried leaves */
   --muted: oklch(0.92 0.02 140);
   --muted-foreground: oklch(0.50 0.04 150);
@@ -101,8 +101,8 @@
   --primary: oklch(0.70 0.10 150);
   --primary-foreground: oklch(0.20 0.03 150);
   /* Muted brown secondary - like dark bark */
-  --secondary: oklch(0.35 0.04 45);
-  --secondary-foreground: oklch(0.90 0.02 140);
+  --secondary: oklch(0.40 0.08 45);
+  --secondary-foreground: oklch(0.85 0.06 45);
   /* Dark sage muted - like deep forest shadows */
   --muted: oklch(0.30 0.04 150);
   --muted-foreground: oklch(0.70 0.05 150);

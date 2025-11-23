@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Loader2, ArrowLeft, Code, Network, FileText, Info } from 'lucide-react'
 import { toast } from 'sonner'
 import '@/src/lib/api-client'
-import { getNodeDetailsNodeDetailsPost } from '@/src/lib/api'
+import { getNodeDetailsNodeDetailsPost, deepTraceAnalyzeDeepTraceAnalyzePost, deepTraceApplyDeepTraceApplyPost } from '@/src/lib/api'
 import {
   CodeBlock,
   CodeBlockBody,
@@ -83,6 +83,9 @@ export default function NodeDetailsPage() {
   const [loading, setLoading] = useState(true)
   const [details, setDetails] = useState<NodeDetails | null>(null)
   const [activeTab, setActiveTab] = useState<'code' | 'graph' | 'list'>('code')
+  const [deepTraceLoading, setDeepTraceLoading] = useState(false)
+  const [deepTraceResults, setDeepTraceResults] = useState<any[]>([])
+  const [showDeepTraceResults, setShowDeepTraceResults] = useState(false)
 
   const loadNodeDetails = useCallback(async (projectRoot: string) => {
     try {
@@ -218,6 +221,56 @@ export default function NodeDetailsPage() {
         },
       ]
     : []
+
+  const handleDeepTrace = async () => {
+    if (!projectPath) return
+    
+    try {
+      setDeepTraceLoading(true)
+      setShowDeepTraceResults(true)
+      const response = await deepTraceAnalyzeDeepTraceAnalyzePost({
+        body: {
+          node_id: nodeId,
+          project_root: projectPath
+        }
+      })
+      
+      if (response.data && (response.data as any).results) {
+        setDeepTraceResults((response.data as any).results)
+      } else {
+        setDeepTraceResults([])
+      }
+    } catch (error) {
+      toast.error("Deep Trace Failed", {
+        description: error instanceof Error ? error.message : "Unknown error"
+      })
+    } finally {
+      setDeepTraceLoading(false)
+    }
+  }
+
+  const handleApplyDeepTrace = async (result: any, match: any) => {
+    if (!projectPath) return
+    
+    try {
+      await deepTraceApplyDeepTraceApplyPost({
+        body: {
+          source_id: nodeId,
+          target_id: match.id,
+          rel_type: result.call.type === 'api_call' ? 'CALLS_API' : 'PRODUCES_EVENT'
+        }
+      })
+      
+      toast.success("Relationship Applied", {
+        description: `Linked to ${match.label}`
+      })
+      
+      // Reload node details to show the new relationship
+      loadNodeDetails(projectPath)
+    } catch (error) {
+      toast.error("Failed to apply relationship")
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
@@ -450,6 +503,90 @@ export default function NodeDetailsPage() {
                   No related nodes found
                 </div>
               )}
+
+              {/* Deep Trace Section */}
+              <div className="pt-4 border-t mt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold">Deep Trace Analysis</h3>
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    onClick={handleDeepTrace}
+                    disabled={deepTraceLoading}
+                  >
+                    {deepTraceLoading ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                        Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <Network className="h-3 w-3 mr-2" />
+                        Run Deep Trace
+                      </>
+                    )}
+                  </Button>
+                </div>
+                
+                {showDeepTraceResults && (
+                  <div className="space-y-4">
+                    {deepTraceLoading ? (
+                      <div className="text-sm text-muted-foreground">
+                        Analyzing source code for implicit relationships...
+                      </div>
+                    ) : deepTraceResults.length > 0 ? (
+                      <div className="space-y-3">
+                        {deepTraceResults.map((result, idx) => (
+                          <div key={idx} className="p-3 border rounded-lg bg-muted/30">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <div className="font-medium text-sm flex items-center gap-2">
+                                  <span className="uppercase text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                                    {result.call.method || 'EVENT'}
+                                  </span>
+                                  <span className="font-mono">{result.call.target}</span>
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-1 font-mono bg-muted p-1 rounded">
+                                  {result.call.evidence}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="mt-3 pl-4 border-l-2">
+                              <div className="text-xs font-medium text-muted-foreground mb-2">Proposed Matches:</div>
+                              {result.proposed_matches && result.proposed_matches.length > 0 ? (
+                                <div className="space-y-2">
+                                  {result.proposed_matches.map((match: any) => (
+                                    <div key={match.id} className="flex items-center justify-between bg-background p-2 rounded border">
+                                      <div className="text-sm truncate flex-1 mr-2">
+                                        {match.label}
+                                      </div>
+                                      <Button 
+                                        size="sm" 
+                                        variant="outline" 
+                                        className="h-7 text-xs"
+                                        onClick={() => handleApplyDeepTrace(result, match)}
+                                      >
+                                        Link
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-xs text-muted-foreground italic">No internal matches found</div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground italic">
+                        No implicit relationships found.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         )}
