@@ -49,15 +49,14 @@ uvicorn main:api --reload --port 8000
 ```
 
 **Docker**:
-```bash
-docker compose exec app uvicorn main:api --host 0.0.0.0 --port 8000
-```
+The API server starts automatically when you run `docker-compose up`.
+The API will be available at `http://localhost:8088`.
 
 ### Interactive Documentation
 
 Once the server is running, access the interactive Swagger UI at:
-- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+- **Swagger UI**: [http://localhost:8088/docs](http://localhost:8088/docs)
+- **ReDoc**: [http://localhost:8088/redoc](http://localhost:8088/redoc)
 
 ### API Endpoints
 

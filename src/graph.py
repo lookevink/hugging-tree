@@ -4,9 +4,39 @@ from typing import List, Dict, Any, Optional
 from .scanner import FileInfo
 from .parser import Definition
 
+def _is_running_in_docker() -> bool:
+    """Detect if code is running inside a Docker container."""
+    # Check for Docker-specific files/environment
+    return (
+        os.path.exists("/.dockerenv") or
+        os.path.exists("/proc/self/cgroup") and "docker" in open("/proc/self/cgroup").read()
+    )
+
+def _get_default_neo4j_uri() -> str:
+    """Get the default Neo4j URI based on the environment."""
+    if _is_running_in_docker():
+        # Inside Docker: use service name for inter-container communication
+        return "bolt://neo4j:7687"
+    else:
+        # Local development: use localhost (Neo4j exposed on host)
+        return "bolt://localhost:7687"
+
+def _normalize_neo4j_uri(uri: str) -> str:
+    """Normalize Neo4j URI for the current environment.
+    
+    If running in Docker and URI uses localhost, convert to service name.
+    This allows the same .env file to work for both local CLI and Docker API.
+    """
+    if _is_running_in_docker() and "localhost" in uri:
+        # Replace localhost with neo4j service name for Docker inter-container communication
+        return uri.replace("localhost", "neo4j")
+    return uri
+
 class GraphDB:
     def __init__(self):
-        uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+        uri = os.getenv("NEO4J_URI") or _get_default_neo4j_uri()
+        # Normalize URI for current environment (convert localhost to neo4j in Docker)
+        uri = _normalize_neo4j_uri(uri)
         user = os.getenv("NEO4J_USER", "neo4j")
         password = os.getenv("NEO4J_PASSWORD", "password")
         self.driver = GraphDatabase.driver(uri, auth=(user, password))

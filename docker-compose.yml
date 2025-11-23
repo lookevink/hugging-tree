@@ -21,16 +21,19 @@ services:
     volumes:
       - .:/app
       - ${PROJECTS_ROOT}:/projects
+    ports:
+      - "8088:8000"
     environment:
-      - NEO4J_URI=${NEO4J_URI}
-      - NEO4J_USER=${NEO4J_USER}
+      - NEO4J_URI=${NEO4J_URI:-bolt://neo4j:7687}
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - PROJECTS_ROOT=/projects
     depends_on:
       - neo4j
     networks:
       - hugging-tree-net
-    command: tail -f /dev/null # Keep container running for development
+    command: uvicorn main:api --host 0.0.0.0 --port 8000 --reload
 
 networks:
   hugging-tree-net:

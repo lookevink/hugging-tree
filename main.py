@@ -14,8 +14,8 @@ from src.embeddings import EmbeddingService
 from src.analyzer import ContextAnalyzer
 from src.planner import PlanGenerator
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (don't override existing env vars)
+load_dotenv(override=False)
 
 # --- 1. SETUP APPS ---
 app = typer.Typer()
